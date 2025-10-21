@@ -14,8 +14,18 @@ data class ErrorResponse(val code: String, val message: String)
 class ApiControllerAdvice : ResponseEntityExceptionHandler() {
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgument(e: IllegalArgumentException): ResponseEntity<ErrorResponse> {
+        logger.warn("Bad request: ${e.message}")
+        return ResponseEntity(
+            ErrorResponse("400", e.message ?: "잘못된 요청입니다."),
+            HttpStatus.BAD_REQUEST,
+        )
+    }
+
     @ExceptionHandler(Exception::class)
     fun handleException(e: Exception): ResponseEntity<ErrorResponse> {
+        logger.error("Unexpected error", e)
         return ResponseEntity(
             ErrorResponse("500", "에러가 발생했습니다."),
             HttpStatus.INTERNAL_SERVER_ERROR,
