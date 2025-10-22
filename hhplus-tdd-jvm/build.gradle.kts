@@ -60,6 +60,7 @@ dependencies {
     // Spring Boot 라이브러리
     implementation(libs.spring.boot.starter.web)                 // Spring Web MVC (REST API 개발)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  // JSON 직렬화/역직렬화 (Kotlin 지원)
+    implementation("org.springframework.boot:spring-boot-starter-validation")  // Bean Validation (Jakarta Validation)
 
     // 어노테이션 프로세서
     annotationProcessor(libs.spring.boot.configuration.processor) // application.properties 자동완성 지원
