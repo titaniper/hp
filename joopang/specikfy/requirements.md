@@ -72,6 +72,39 @@ user-stories.md를 기반으로 RESTful API 명세서를 작성해주세요. api
 API 명세서를 기반으로 데이터 모델을 설계해주세요. data-models.md에요.
 Entity Relationship Diagram과 각 엔티티의 속성,
 제약조건, 인덱스 정보를 포함해주세요.
+
+아래는 예시
+
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table order {
+  following_user_id integer
+  followed_user_id integer
+  created_at timestamp
+}
+
+Table users {
+  id integer [primary key]
+  username varchar
+  role varchar
+  created_at timestamp
+}
+
+Table posts {
+  id integer [primary key]
+  title varchar
+  body text [note: 'Content of the post']
+  user_id integer [not null]
+  status varchar
+  created_at timestamp
+}
+
+Ref user_posts: posts.user_id > users.id // many-to-one
+
+Ref: users.id < order.following_user_id
+
+Ref: users.id < order.followed_user_id
 ```
 ​
 ### 5단계: OpenAPI 스펙 생성
