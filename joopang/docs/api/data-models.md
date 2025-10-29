@@ -26,6 +26,33 @@ Table categories {
   parent_id uuid [ref: - categories.id, note: 'nullable']
 }
 
+Table products {
+  id uuid [pk]
+  name varchar
+  code varchar [unique]
+  description text
+  content text
+  status ProductStatus
+  seller_id uuid [ref: > sellers.id]
+  category_id uuid [ref: > categories.id]
+  original_price_amount decimal
+  original_price_currency varchar
+  discount_rate decimal
+  version int
+}
+
+Table product_items {
+  id uuid [pk]
+  product_id uuid [ref: > products.id]
+  name varchar
+  unit_price decimal
+  description text
+  status ProductItemStatus
+  code varchar [note: 'sku = productCode-itemCode']
+  price_amount decimal
+  price_unit varchar
+}
+
 Table orders {
   id uuid [pk]
   image_url varchar
@@ -36,7 +63,6 @@ Table orders {
   discounted_price decimal
   final_payment_amount decimal
   delivery_fee decimal
-  delivery_id uuid [ref: - deliveries.id]
   payment_id uuid [ref: - payments.id]
   ordered_at timestamp
   zip_code varchar
@@ -60,6 +86,8 @@ Table deliveries {
 Table order_items {
   id uuid [pk]
   order_id uuid [ref: > orders.id]
+  product_id uuid [ref: > products.id, note: 'nullable']
+  product_item_id uuid [ref: - product_items.id, note: 'nullable']
   price decimal
   quantity int
   product_name varchar
@@ -81,7 +109,7 @@ Table order_discounts {
 Table cart_items {
   id uuid [pk]
   user_id uuid [ref: > users.id]
-  product_id uuid [note: 'refer to products table if defined']
+  product_id uuid [ref: > products.id]
   quantity int
 }
 
@@ -154,6 +182,14 @@ Enum DeliveryStatus {
 Enum OrderDiscountType {
   POINT
   COUPON
+}
+
+Enum ProductStatus {
+  ON_SALE [note: '판매중']
+}
+
+Enum ProductItemStatus {
+  ACTIVE [note: '판매중']
 }
 
 Enum CouponType {
