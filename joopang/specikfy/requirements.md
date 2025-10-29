@@ -62,20 +62,20 @@ As a [role], I want [feature], so that [benefit] 형식으로 작성하고,
 ​
 ### 3단계: API 명세서 생성
 ```
-user-stories.md를 기반으로 RESTful API 명세서를 작성해주세요.
+user-stories.md를 기반으로 RESTful API 명세서를 작성해주세요. api-specification.md 에요
 엔드포인트, HTTP 메소드, 요청/응답 형식을 포함하고,
 에러 처리와 상태 코드도 정의해주세요.
 ```
 ​
 ### 4단계: 데이터 모델 설계
 ```
-API 명세서를 기반으로 데이터 모델을 설계해주세요.
+API 명세서를 기반으로 데이터 모델을 설계해주세요. data-models.md에요.
 Entity Relationship Diagram과 각 엔티티의 속성,
 제약조건, 인덱스 정보를 포함해주세요.
 ```
 ​
 ### 5단계: OpenAPI 스펙 생성
-API 명세서를 OpenAPI 3.0 형식으로 변환해주세요.
+API 명세서를 OpenAPI 3.0 형식으로 변환해주세요. docs/api 같은 폴더에요
 Swagger UI에서 테스트할 수 있도록 예시 데이터와
 인증 방식도 포함해주세요.
 
