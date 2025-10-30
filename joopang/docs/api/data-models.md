@@ -47,6 +47,7 @@ Table product_items {
   name varchar
   unit_price decimal
   description text
+  stock decimal
   status ProductItemStatus
   code varchar [note: 'sku = productCode-itemCode']
   price_amount decimal
@@ -59,9 +60,8 @@ Table orders {
   status OrderStatus
   recipient_name varchar
   order_month varchar [note: '예: YYYY-MM']
-  total_price decimal
-  discounted_price decimal
-  final_payment_amount decimal
+  total_amount decimal
+  discounte_amount decimal
   ordered_at timestamp
   memo text
 }
@@ -71,12 +71,12 @@ Table order_items {
   order_id uuid [ref: > orders.id]
   product_id uuid [ref: > products.id, note: 'nullable']
   product_item_id uuid [ref: - product_items.id, note: 'nullable']
-  price decimal
-  quantity int
   product_name varchar
-  unit_price decimal
-  discount_price decimal
-  final_price decimal
+  price_amount decimal
+  quantity int
+  unit_amount decimal
+  discount_amount decimal
+  subtotal_amount decimal
   refunded_amount decimal
   refunded_quantity int
 }
@@ -133,6 +133,7 @@ Table coupons {
   coupon_template_id uuid [ref: > coupon_templates.id, note: 'nullable']
   type CouponType
   value decimal
+  issued_at timestamp
   used_at timestamp [note: 'nullable']
   expired_at timestamp [note: 'nullable']
   order_id uuid [note: 'nullable']
@@ -144,6 +145,7 @@ Table payments {
   payment_gateway varchar
   payment_method PaymentMethod
   payment_amount decimal
+  remaining_balance decimal
   status PaymentStatus
   payment_key varchar [note: 'nullable']
   transaction_id varchar [note: 'nullable']
