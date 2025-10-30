@@ -34,6 +34,19 @@ data class ProductItemDto(
     val price: MoneyDto,
 )
 
+data class TopProductsResponseDto(
+    val period: String,
+    val products: List<TopProductDto>,
+)
+
+data class TopProductDto(
+    val rank: Int,
+    val productId: UUID,
+    val name: String,
+    val salesCount: Int,
+    val revenue: BigDecimal,
+)
+
 enum class ProductStatus {
     ON_SALE,
 }

@@ -13,10 +13,40 @@ class ProductController {
     @GetMapping
     fun getProducts(): List<ProductDto> = MOCK_PRODUCTS
 
+    @GetMapping("/top")
+    fun getTopProducts(): TopProductsResponseDto = MOCK_TOP_PRODUCTS_RESPONSE
+
     @GetMapping("/{productId}")
     fun getProduct(@PathVariable productId: UUID): ProductDto = MOCK_PRODUCTS.firstOrNull { it.id == productId }
         ?: throw IllegalArgumentException("상품을 찾을 수 없습니다.")
 }
+
+private val MOCK_TOP_PRODUCTS_RESPONSE = TopProductsResponseDto(
+    period = "3days",
+    products = listOf(
+        TopProductDto(
+            rank = 1,
+            productId = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+            name = "프리미엄 드립 커피 세트",
+            salesCount = 124,
+            revenue = BigDecimal("4935200"),
+        ),
+        TopProductDto(
+            rank = 2,
+            productId = UUID.fromString("44444444-4444-4444-4444-444444444444"),
+            name = "에센셜 핸드크림 3종 세트",
+            salesCount = 98,
+            revenue = BigDecimal("2538200"),
+        ),
+        TopProductDto(
+            rank = 3,
+            productId = UUID.fromString("66666666-6666-6666-6666-666666666666"),
+            name = "시그니처 허브 티 컬렉션",
+            salesCount = 72,
+            revenue = BigDecimal("1785600"),
+        ),
+    ),
+)
 
 private val MOCK_PRODUCTS = listOf(
     ProductDto(
@@ -89,6 +119,37 @@ private val MOCK_PRODUCTS = listOf(
                 unitPrice = BigDecimal("8900"),
                 price = MoneyDto(
                     amount = BigDecimal("8900"),
+                    currency = "KRW",
+                ),
+            ),
+        ),
+    ),
+    ProductDto(
+        id = UUID.fromString("66666666-6666-6666-6666-666666666666"),
+        name = "시그니처 허브 티 컬렉션",
+        code = "PROD-TEA-SET-003",
+        description = "카페인 없는 허브 티 블렌드 5종 구성",
+        content = "라벤더 캬모마일 등 인기 허브 티 5종과 안내 리플렛",
+        status = ProductStatus.ON_SALE,
+        sellerId = UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+        categoryId = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+        price = MoneyDto(
+            amount = BigDecimal("24800"),
+            currency = "KRW",
+        ),
+        discountRate = BigDecimal("0.05"),
+        version = 2,
+        items = listOf(
+            ProductItemDto(
+                id = UUID.fromString("77777777-7777-7777-7777-777777777777"),
+                name = "허브 티 샘플러 10팩",
+                code = "SKU-TEA-001",
+                description = "라벤더, 루이보스, 캐모마일, 페퍼민트, 히비스커스 블렌드 각 2팩",
+                status = ProductItemStatus.ACTIVE,
+                stock = BigDecimal("120"),
+                unitPrice = BigDecimal("24800"),
+                price = MoneyDto(
+                    amount = BigDecimal("24800"),
                     currency = "KRW",
                 ),
             ),
