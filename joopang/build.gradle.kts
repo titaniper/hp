@@ -25,6 +25,7 @@ dependencies {
     implementation(libs.spring.boot.starter.web)                 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
     implementation("org.springframework.boot:spring-boot-starter-validation")  
+    implementation(libs.springdoc.openapi.starter.webmvc.ui)
 
     annotationProcessor(libs.spring.boot.configuration.processor) 
 

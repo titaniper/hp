@@ -6,6 +6,7 @@ spring_boot = "3.2.0"
 spring_cloud_dependencies = "2023.0.0"
 spring_io_dependency_management = "1.1.0"
 spring_mockk = "4.0.2"
+springdoc_openapi = "2.3.0"
 
 redisson = "3.25.2"
 # test
@@ -51,5 +52,6 @@ micrometer_registry_prometheus = { module = "io.micrometer:micrometer-registry-p
 # test
 assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 spring_mockk = { module = "com.ninja-squad:springmockk", version.ref = "spring_mockk" }
+springdoc_openapi_starter_webmvc_ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc_openapi" }
 [bundles]
 testcontainers_mysql = ["test_containers_mysql", "spring_boot_testcontainers", "test_containers_junit_jupiter","spring_boot_starter_test"]
