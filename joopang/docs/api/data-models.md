@@ -35,8 +35,8 @@ Table products {
   status ProductStatus
   seller_id uuid [ref: > sellers.id]
   category_id uuid [ref: > categories.id]
-  original_price_amount decimal
-  original_price_currency varchar
+  price_amount decimal
+  price_currency varchar
   discount_rate decimal
   version int
 }
@@ -62,25 +62,8 @@ Table orders {
   total_price decimal
   discounted_price decimal
   final_payment_amount decimal
-  delivery_fee decimal
-  payment_id uuid [ref: - payments.id]
   ordered_at timestamp
-  zip_code varchar
-  base_address varchar
-  detail_address varchar
-  receiver_tel_no1 varchar
-  receiver_tel_no2 varchar
   memo text
-}
-
-Table deliveries {
-  id uuid [pk]
-  type DeliveryType
-  estimated_delivery_date date
-  status DeliveryStatus
-  tracking_number varchar
-  delivery_fee decimal
-  order_id uuid [ref: > orders.id]
 }
 
 Table order_items {
@@ -95,6 +78,7 @@ Table order_items {
   discount_price decimal
   final_price decimal
   refunded_amount decimal
+  refunded_quantity int
 }
 
 Table order_discounts {
@@ -106,10 +90,25 @@ Table order_discounts {
   coupon_id uuid [ref: - coupons.id, note: 'nullable']
 }
 
+Table deliveries {
+  id uuid [pk]
+  order_id uuid [ref: > orders.id]
+  type DeliveryType
+  zip_code varchar
+  base_address varchar
+  detail_address varchar
+  receiver_tel varchar
+  estimated_delivery_date date
+  status DeliveryStatus
+  tracking_number varchar
+  delivery_fee decimal
+}
+
 Table cart_items {
   id uuid [pk]
   user_id uuid [ref: > users.id]
   product_id uuid [ref: > products.id]
+  product__item_id uuid [ref: > product_items.id]
   quantity int
 }
 
@@ -123,6 +122,7 @@ Table coupon_templates {
   max_discount_amount decimal [note: 'nullable']
   total_quantity int
   issued_quantity int
+  limit_quantity int
   start_at timestamp [note: 'nullable']
   end_at timestamp [note: 'nullable']
 }
@@ -133,7 +133,9 @@ Table coupons {
   coupon_template_id uuid [ref: > coupon_templates.id, note: 'nullable']
   type CouponType
   value decimal
+  used_at timestamp [note: 'nullable']
   expired_at timestamp [note: 'nullable']
+  order_id uuid [note: 'nullable']
 }
 
 Table payments {
@@ -142,9 +144,6 @@ Table payments {
   payment_gateway varchar
   payment_method PaymentMethod
   payment_amount decimal
-  coupon_discount decimal
-  instant_discount decimal
-  point_used decimal
   status PaymentStatus
   payment_key varchar [note: 'nullable']
   transaction_id varchar [note: 'nullable']
