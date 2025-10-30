@@ -1,0 +1,50 @@
+sequenceDiagram
+    participant U as 사용자
+    participant FE as 웹/앱 클라이언트
+    participant CS as 장바구니 서비스
+    participant PS as 상품 서비스
+    participant IS as 재고 서비스
+    participant DB as Cart DB
+    participant EV as 이벤트 버스/로그
+
+    U->>FE: 장바구니 담기 (productId, itemId, qty)
+    FE->>CS: AddToCart API 요청 (auth token)
+    CS->>CS: 인증 토큰 검증
+    CS->>PS: 상품/옵션 상태 조회
+    alt 판매 중지/존재하지 않음
+        PS-->>CS: 판매 불가 상태
+        CS-->>FE: 담기 실패 (상품 상태)
+    else 판매 가능
+        PS-->>CS: 상품 정보 응답
+        CS->>IS: 재고 수량 확인 (itemId, qty)
+        alt 재고 부족
+            IS-->>CS: 부족 응답
+            CS-->>FE: 담기 실패 (재고 부족)
+        else 재고 충분
+            IS-->>CS: 가능 응답
+            CS->>DB: 기존 카트 항목 조회 (userId, itemId)
+            alt 기존 항목 존재
+                DB-->>CS: 기존 항목 반환
+                CS->>DB: 수량 업데이트 (누적)
+            else 신규 항목
+                DB-->>CS: 없음
+                CS->>DB: 신규 카트 항목 생성
+            end
+            CS->>EV: cart_item.updated 이벤트 기록
+            CS-->>FE: 장바구니 성공 응답 (요약)
+        end
+    end
+
+    rect rgba(200,200,200,0.2)
+        FE->>CS: 수량 변경/삭제 요청
+        CS->>DB: 해당 항목 조회
+        alt 삭제 요청
+            CS->>DB: 항목 삭제
+        else 수량 변경
+            CS->>IS: 재고 재검증 (신규 qty)
+            IS-->>CS: 결과
+            CS->>DB: 수량 업데이트
+        end
+        CS->>EV: cart_item.updated 이벤트 기록
+        CS-->>FE: 최신 장바구니 응답
+    end
