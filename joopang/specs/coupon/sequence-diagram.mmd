@@ -1,0 +1,31 @@
+sequenceDiagram
+    participant U as 사용자
+    participant FE as 웹/앱 클라이언트
+    participant CS as 쿠폰 서비스
+    participant RL as 선착순 토큰 제어(예: Redis Lua)
+    participant DB as 쿠폰 DB
+
+    U->>FE: 선착순 쿠폰 받기 클릭
+    FE->>CS: 쿠폰 발급 요청 (userId, templateId)
+    CS->>CS: 파라미터 및 인증 검증
+    CS->>RL: 토큰 확보 요청 (decrement)
+    alt 토큰 확보 실패
+        RL-->>CS: 잔여 수량 없음
+        CS-->>FE: 재고 소진 응답
+    else 토큰 확보 성공
+        RL-->>CS: 잔여 수량 및 토큰 확인
+        CS->>DB: 사용자 중복 발급 조회
+        alt 기존 발급 존재
+            DB-->>CS: 기존 발급 레코드
+            CS->>RL: 토큰 롤백 (increment)
+            RL-->>CS: 롤백 완료
+            CS-->>FE: 이미 수령 안내
+        else 신규 발급
+            DB-->>CS: 중복 없음
+            CS->>DB: 쿠폰 발급 레코드 생성 (상태 ISSUED)
+            DB-->>CS: 발급 완료
+            CS->>RL: 토큰 확정 (lock commit)
+            RL-->>CS: 확정 완료
+            CS-->>FE: 발급 성공 응답
+        end
+    end

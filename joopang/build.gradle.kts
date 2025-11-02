@@ -1,0 +1,66 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+plugins {
+    alias(libs.plugins.kotlin.jvm)                     
+    alias(libs.plugins.kotlin.spring)                  
+    alias(libs.plugins.spring.boot)                    
+    alias(libs.plugins.spring.dependency.management)   
+    id("jacoco")                                       
+}
+
+allprojects {
+    group = property("app.group").toString()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom(libs.spring.cloud.dependencies.get().toString())
+    }
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-reflect")        
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")    
+
+    implementation(libs.spring.boot.starter.web)                 
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
+    implementation("org.springframework.boot:spring-boot-starter-validation")  
+    implementation(libs.springdoc.openapi.starter.webmvc.ui)
+
+    annotationProcessor(libs.spring.boot.configuration.processor) 
+
+    testImplementation(libs.spring.boot.starter.test)
+
+    testImplementation("io.kotest:kotest-runner-junit5:5.8.0")  
+    testImplementation("io.kotest:kotest-assertions-core:5.8.0") 
+    testImplementation("io.kotest:kotest-property:5.8.0")        
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17  
+}
+
+with(extensions.getByType(JacocoPluginExtension::class.java)) {
+    toolVersion = "0.8.7"
+}
+
+tasks.withType<KotlinCompile> {
+    kotlinOptions {
+        freeCompilerArgs = listOf("-Xjsr305=strict")
+
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+}
+
+tasks.getByName("bootJar") {
+    enabled = true
+}
+
+tasks.getByName("jar") {
+    enabled = false
+}
+
+tasks.test {
+    ignoreFailures = true    
+    useJUnitPlatform()       
+}

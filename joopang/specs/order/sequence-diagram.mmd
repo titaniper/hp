@@ -1,0 +1,38 @@
+sequenceDiagram
+    participant U as 사용자
+    participant FE as 웹/앱 클라이언트
+    participant OS as 주문 서비스
+    participant IS as 재고 서비스
+    participant DS as 할인 서비스
+    participant DB as 주문 DB
+    participant PG as 결제 게이트웨이
+    participant DV as 배송 서비스
+    participant DP as 데이터 플랫폼
+
+    U->>FE: 장바구니 주문 제출
+    FE->>OS: 주문 생성 요청 (payload)
+    OS->>OS: 기본 유효성 검증
+    OS->>IS: 재고 차감 또는 예약 요청
+    alt 재고 부족 또는 실패
+        IS-->>OS: 실패 응답
+        OS-->>FE: 주문 실패 (재고 부족)
+    else 재고 확보 완료
+        IS-->>OS: 성공 응답 (예약 ID)
+        OS->>DS: 할인 계산 요청 (쿠폰/포인트)
+        DS-->>OS: 할인 결과
+        OS->>DB: orders, order_items 저장
+        OS->>PG: 결제 승인 요청 (final amount)
+        alt 결제 실패
+            PG-->>OS: 실패 응답
+            OS->>IS: 재고 예약 해제
+            OS->>DB: 주문 상태 CANCELLED 업데이트
+            OS-->>FE: 결제 실패 응답
+        else 결제 성공
+            PG-->>OS: 성공 응답 (승인키)
+            OS->>DB: payments 적재 및 주문 상태 PAID 업데이트
+            OS->>DV: 배송 지시 생성 요청
+            DV-->>OS: 배송 정보 생성 결과
+            OS->>DP: 주문/결제 이벤트 전송
+            OS-->>FE: 주문 완료 응답
+        end
+    end
