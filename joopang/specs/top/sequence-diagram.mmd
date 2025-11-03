@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant U as 사용자
+    participant FE as 웹/앱 클라이언트
+    participant TS as Top 상품 서비스
+    participant Cache as 캐시(Redis)
+    participant DP as 데이터 플랫폼
+    participant ADW as 집계 스토어
+
+    U->>FE: 인기 상품 조회 (최근 3일, Top5)
+    activate FE
+    FE->>TS: GET /products/top 요청
+    activate TS
+    TS->>TS: 파라미터/권한 검증
+    TS->>Cache: Top5 캐시 조회
+    activate Cache
+    alt 캐시 히트
+        Cache-->>TS: 캐시된 Top5 결과
+    else 캐시 미스
+        Cache-->>TS: MISS
+        deactivate Cache
+        TS->>DP: 주문/결제 집계 질의 (최근 3일)
+        activate DP
+        DP-->>TS: 집계 결과 (상품별 판매량)
+        deactivate DP
+        TS->>TS: Top-N 계산 및 정렬
+        TS->>ADW: 최신 랭킹 기록
+        activate ADW
+        ADW-->>TS: 저장 완료
+        deactivate ADW
+        TS->>Cache: Top5 결과 캐싱 (TTL 10분)
+        activate Cache
+        Cache-->>TS: 캐싱 완료
+        deactivate Cache
+    end
+    TS-->>FE: Top5 랭킹 응답
+    deactivate TS
+    FE-->>U: 인기 상품 노출
+    deactivate FE
+
+    opt 배치 집계 파이프라인
+        DP->>ADW: 정기 Top-N 프리컴퓨트
+        activate Cache
+        ADW-->>Cache: 캐시 프리워밍
+        Cache-->>ADW: 프리워밍 확인
+        deactivate Cache
+    end
