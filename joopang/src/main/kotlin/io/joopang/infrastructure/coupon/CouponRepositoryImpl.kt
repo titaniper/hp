@@ -3,6 +3,7 @@ package io.joopang.infrastructure.coupon
 import io.joopang.domain.coupon.Coupon
 import io.joopang.domain.coupon.CouponNotFoundException
 import io.joopang.domain.coupon.CouponRepository
+import io.joopang.domain.coupon.CouponStatus
 import io.joopang.domain.coupon.CouponType
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
@@ -28,6 +29,9 @@ class CouponRepositoryImpl : CouponRepository {
     override fun findUserCoupon(userId: UUID, couponId: UUID): Coupon? =
         store[couponId]?.takeIf { it.userId == userId }
 
+    override fun findUserCouponByTemplate(userId: UUID, couponTemplateId: UUID): Coupon? =
+        store.values.firstOrNull { it.userId == userId && it.couponTemplateId == couponTemplateId }
+
     override fun save(coupon: Coupon): Coupon {
         store[coupon.id] = coupon
         return coupon
@@ -35,10 +39,10 @@ class CouponRepositoryImpl : CouponRepository {
 
     override fun markUsed(couponId: UUID, orderId: UUID, usedAt: Instant): Coupon {
         val coupon = store[couponId] ?: throw CouponNotFoundException(couponId.toString())
-        val updated = coupon.copy(
-            usedAt = usedAt,
-            orderId = orderId,
-        )
+        require(coupon.status == CouponStatus.AVAILABLE) {
+            "Coupon $couponId is not available"
+        }
+        val updated = coupon.markUsed(orderId = orderId, usedAt = usedAt)
         store[couponId] = updated
         return updated
     }
@@ -52,6 +56,7 @@ class CouponRepositoryImpl : CouponRepository {
             couponTemplateId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
             type = CouponType.PERCENTAGE,
             value = BigDecimal("0.10"),
+            status = CouponStatus.AVAILABLE,
             issuedAt = Instant.now().minus(3, ChronoUnit.DAYS),
             expiredAt = Instant.now().plus(30, ChronoUnit.DAYS),
         )
@@ -63,6 +68,7 @@ class CouponRepositoryImpl : CouponRepository {
             couponTemplateId = UUID.fromString("bbbbbbbb-cccc-dddd-eeee-ffffffffffff"),
             type = CouponType.AMOUNT,
             value = BigDecimal("5000"),
+            status = CouponStatus.AVAILABLE,
             issuedAt = Instant.now().minus(1, ChronoUnit.DAYS),
             expiredAt = Instant.now().plus(15, ChronoUnit.DAYS),
         )

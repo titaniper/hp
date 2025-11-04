@@ -10,6 +10,7 @@ data class Coupon(
     val couponTemplateId: UUID?,
     val type: CouponType,
     val value: BigDecimal,
+    val status: CouponStatus = CouponStatus.AVAILABLE,
     val issuedAt: Instant,
     val usedAt: Instant? = null,
     val expiredAt: Instant? = null,
@@ -20,8 +21,21 @@ data class Coupon(
         require(value >= BigDecimal.ZERO) { "Coupon value cannot be negative" }
     }
 
-    fun isUsed(): Boolean = usedAt != null
+    fun isUsed(): Boolean = status == CouponStatus.USED
 
     fun isExpired(referenceTime: Instant = Instant.now()): Boolean =
-        expiredAt?.let { referenceTime.isAfter(it) } ?: false
+        status == CouponStatus.EXPIRED || expiredAt?.let { referenceTime.isAfter(it) } ?: false
+
+    fun isAvailable(referenceTime: Instant = Instant.now()): Boolean =
+        status == CouponStatus.AVAILABLE && !isExpired(referenceTime)
+
+    fun markUsed(orderId: UUID, usedAt: Instant = Instant.now()): Coupon =
+        copy(
+            status = CouponStatus.USED,
+            usedAt = usedAt,
+            orderId = orderId,
+        )
+
+    fun expire(): Coupon =
+        if (status == CouponStatus.EXPIRED) this else copy(status = CouponStatus.EXPIRED)
 }

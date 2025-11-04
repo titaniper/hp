@@ -33,4 +33,17 @@ data class CouponTemplate(
         status == CouponTemplateStatus.ACTIVE &&
             (startAt == null || !at.isBefore(startAt)) &&
             (endAt == null || !at.isAfter(endAt))
+
+    fun remainingQuantity(): Int = totalQuantity - issuedQuantity
+
+    fun canIssue(at: Instant = Instant.now()): Boolean =
+        isActive(at) && remainingQuantity() > 0
+
+    fun canIssueForUser(currentUserIssuedCount: Int): Boolean =
+        limitQuantity <= 0 || currentUserIssuedCount < limitQuantity
+
+    fun issue(): CouponTemplate {
+        require(remainingQuantity() > 0) { "No coupons remaining for template $id" }
+        return copy(issuedQuantity = issuedQuantity + 1)
+    }
 }
