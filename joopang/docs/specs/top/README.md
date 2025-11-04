@@ -56,6 +56,7 @@ CREATE TABLE product_metrics_daily (
   metric_date DATE NOT NULL,
   product_id BIGINT NOT NULL,
   views INT NOT NULL DEFAULT 0,
+  sales INT NOT NULL DEFAULT 0,
   PRIMARY KEY (metric_date, product_id),
   INDEX (product_id, metric_date)
 );

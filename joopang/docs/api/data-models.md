@@ -1,3 +1,6 @@
+/**
+https://dbdiagram.io/d/69018c17357668b7321a0975
+**/
 Table users {
   id uuid [pk]
   email varchar [not null, unique]
@@ -34,13 +37,15 @@ Table products {
   price decimal
   discount_rate decimal
   version int
+  view_count INT 
+  sales_count INT 
 }
 
 Table product_items {
   id uuid [pk]
   product_id uuid [ref: > products.id]
   name varchar
-  price decimal
+  unit_price decimal
   description text
   stock decimal
   status ProductItemStatus
@@ -67,7 +72,7 @@ Table order_items {
   product_name varchar
   quantity int
   unit_price decimal
-  amount decimal
+  subtotal decimal
   refunded_amount decimal
   refunded_quantity int
 }
@@ -214,3 +219,14 @@ Enum PaymentStatus {
   REFUNDED
   PARTIAL_REFUNDED
 }
+
+```sql
+CREATE TABLE product_metrics_daily (
+  metric_date DATE NOT NULL,
+  product_id BIGINT NOT NULL,
+  views INT NOT NULL DEFAULT 0,
+  sales INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (metric_date, product_id),
+  INDEX (product_id, metric_date)
+);
+```

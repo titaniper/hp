@@ -1,0 +1,79 @@
+sequenceDiagram
+    participant User as 사용자
+    participant App as 애플리케이션
+    participant Redis as Redis Cache
+    participant Batch as 배치 스케줄러
+    participant DB as MySQL
+    participant Dashboard as 점주 대시보드
+
+    %% 실시간 메트릭 수집
+    rect rgb(240, 248, 255)
+        Note over User,Redis: 1. 실시간 메트릭 수집
+        User->>App: 상품 조회
+        App->>Redis: HINCRBY product:123:metrics:2024-11-04 views 1
+        Redis-->>App: OK
+        App-->>User: 상품 페이지 응답
+        
+        User->>App: 상품 구매
+        App->>Redis: HINCRBY product:123:metrics:2024-11-04 sales 1
+        Redis-->>App: OK
+    end
+
+    %% 배치 처리
+    rect rgb(255, 250, 240)
+        Note over Batch,DB: 2. 배치 처리 (매일 새벽 2시)
+        Batch->>Batch: 스케줄 트리거 (cron)
+        Batch->>Redis: SCAN product:*:metrics:2024-11-03
+        Redis-->>Batch: [product:123:metrics:2024-11-03, ...]
+        
+        loop 각 상품별 메트릭
+            Batch->>Redis: HGETALL product:123:metrics:2024-11-03
+            Redis-->>Batch: {views: 1500, sales: 25}
+            
+            Batch->>DB: INSERT INTO product_metrics_daily<br/>VALUES ('2024-11-03', 123, 1500, 25)<br/>ON DUPLICATE KEY UPDATE<br/>views = views + 1500
+            DB-->>Batch: OK
+            
+            Batch->>Redis: DEL product:123:metrics:2024-11-03
+            Redis-->>Batch: OK
+        end
+        
+        Note over Batch: 배치 완료 로그 기록
+    end
+
+    %% 인기 상품 조회
+    rect rgb(240, 255, 240)
+        Note over Dashboard,DB: 3. 사용자가 인기 상품 조회
+        User->>App: GET /products/popular?days=7&sort=views&limit=20
+        
+        App->>Redis: KEYS product:*:metrics:2024-11-04
+        Redis-->>App: 오늘 활성 상품 목록
+        
+        App->>Redis: MGET (오늘 모든 상품 메트릭)
+        Redis-->>App: 실시간 views/sales 데이터
+        
+        App->>DB: SELECT product_id,<br/>SUM(views) as total_views,<br/>SUM(sales) as total_sales<br/>FROM product_metrics_daily<br/>WHERE metric_date >= '2024-10-28'<br/>GROUP BY product_id<br/>ORDER BY total_views DESC<br/>LIMIT 20
+        DB-->>App: 최근 7일 집계 데이터
+        
+        App->>App: Redis(오늘) + DB(과거 6일) 병합<br/>조회순/판매순 정렬
+        
+        App->>DB: SELECT * FROM products<br/>WHERE id IN (123, 456, ...)
+        DB-->>App: 상품 상세 정보 (이름, 가격, 이미지)
+        
+        App-->>User: JSON 응답:<br/>[{id: 123, name: '상품A', views: 15000, sales: 250},<br/> {id: 456, name: '상품B', views: 12000, sales: 180}, ...]
+        
+        User->>User: 인기 상품 목록 렌더링
+    end
+
+    %% 장애 상황
+    rect rgb(255, 240, 240)
+        Note over App,Redis: 4. 장애 상황 처리
+        Dashboard->>App: 메트릭 조회
+        App->>Redis: GET ...
+        Redis--xApp: Connection Timeout
+        
+        App->>DB: SELECT (fallback to DB only)
+        DB-->>App: 데이터 반환
+        App-->>Dashboard: 응답 (약간 지연됨)
+        
+        Note over App: Redis 복구 후<br/>배치에서 정합성 보정
+    end
