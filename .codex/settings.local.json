@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "bash ./gradlew test",
+      "bash ./gradlew clean build",
+      "bash ./gradlew build",
+      "bash ./gradlew bootRun",
+      "bash ./gradlew jacocoTestReport"
+    ],
+    "deny": [
+      "bash rm -rf *",
+      "bash git push"
+    ],
+    "ask": [
+      "bash ./gradlew publish",
+      "bash ./gradlew dependencyUpdates"
+    ]
+  }
+}
