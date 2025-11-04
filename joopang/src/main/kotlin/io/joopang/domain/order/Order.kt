@@ -7,6 +7,7 @@ import java.util.UUID
 
 data class Order(
     val id: UUID,
+    val userId: UUID,
     val imageUrl: String?,
     val status: OrderStatus,
     val recipientName: String,
@@ -14,6 +15,7 @@ data class Order(
     val totalAmount: Money,
     val discountAmount: Money = Money.ZERO,
     val orderedAt: Instant,
+    val paidAt: Instant? = null,
     val memo: String? = null,
 ) {
 
@@ -25,4 +27,9 @@ data class Order(
     }
 
     fun payableAmount(): Money = totalAmount - discountAmount
+
+    fun canPay(): Boolean = status == OrderStatus.PENDING
+
+    fun markPaid(paidTimestamp: Instant): Order =
+        copy(status = OrderStatus.PAID, paidAt = paidTimestamp)
 }
