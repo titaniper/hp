@@ -37,6 +37,7 @@ class OrderUseCase(
     private val userRepository: UserRepository,
     private val couponRepository: CouponRepository,
     private val dataTransmissionService: OrderDataTransmissionService,
+    private val productLockManager: ProductLockManager,
 ) {
 
     fun createOrder(command: CreateOrderCommand): OrderAggregate {
@@ -47,46 +48,11 @@ class OrderUseCase(
         val now = Instant.now()
         val orderMonth = toOrderMonth(now, command.zoneId)
 
-        val lineItems = mutableListOf<OrderItemDraft>()
-        var subtotal = Money.ZERO
-
         require(command.items.isNotEmpty()) { "Order must contain at least one item" }
-        command.items.forEach { itemCommand ->
-            require(itemCommand.quantity > 0) { "Quantity must be positive" }
 
-            val productAggregate = productRepository.findById(itemCommand.productId)
-                ?: throw ProductNotFoundException(itemCommand.productId.toString())
-            val productItem = productAggregate.items.firstOrNull { it.id == itemCommand.productItemId }
-                ?: throw ProductItemNotFoundException(
-                    productAggregate.product.id.toString(),
-                    itemCommand.productItemId?.toString() ?: "",
-                )
+        val reservation = reserveStock(command.items)
 
-            if (!productItem.isActive()) {
-                throw IllegalStateException("Product item ${productItem.id} is not active")
-            }
-
-            val requestedStock = StockQuantity.of(itemCommand.quantity.toLong())
-            if (!productItem.stock.isGreaterOrEqual(requestedStock)) {
-                throw InsufficientStockException(
-                    productAggregate.product.id.toString(),
-                    productItem.id.toString(),
-                )
-            }
-
-            val quantity = Quantity(itemCommand.quantity)
-            val unitPrice = productItem.unitPrice
-            val lineSubtotal = unitPrice * quantity.value
-
-            subtotal += lineSubtotal
-            lineItems += OrderItemDraft(
-                productAggregate = productAggregate,
-                productItemId = productItem.id,
-                quantity = quantity,
-                unitPrice = unitPrice,
-                subtotal = lineSubtotal,
-            )
-        }
+        val subtotal = reservation.subtotal
 
         val couponResult = command.couponId?.let { couponId ->
             val coupon = couponRepository.findUserCoupon(command.userId, couponId)
@@ -124,13 +90,13 @@ class OrderUseCase(
             memo = command.memo,
         )
 
-        val items = lineItems.map { draft ->
+        val items = reservation.drafts.map { draft ->
             io.joopang.domain.order.OrderItem(
                 id = UUID.randomUUID(),
                 orderId = orderId,
-                productId = draft.productAggregate.product.id,
+                productId = draft.productId,
                 productItemId = draft.productItemId,
-                productName = draft.productAggregate.product.name,
+                productName = draft.productName,
                 quantity = draft.quantity,
                 unitPrice = draft.unitPrice,
                 subtotal = draft.subtotal,
@@ -166,13 +132,9 @@ class OrderUseCase(
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
 
-        val productUpdates = prepareProductUpdates(aggregate)
-
         val payableAmount = aggregate.order.payableAmount()
         val updatedUser = user.deduct(payableAmount)
         userRepository.save(updatedUser)
-
-        productUpdates.values.forEach { productRepository.update(it) }
 
         aggregate.discounts.forEach { discount ->
             discount.couponId?.let {
@@ -220,33 +182,59 @@ class OrderUseCase(
         )
     }
 
-    private fun prepareProductUpdates(aggregate: OrderAggregate): MutableMap<UUID, ProductWithItems> {
-        val updates = mutableMapOf<UUID, ProductWithItems>()
+    private fun reserveStock(items: List<CreateOrderItemCommand>): ReservationResult {
+        val drafts = mutableListOf<OrderItemDraft>()
+        var subtotal = Money.ZERO
 
-        aggregate.items.forEach { orderItem ->
-            val productId = orderItem.productId
-                ?: throw ProductNotFoundException("order-item-${orderItem.id}")
-            val baseAggregate = updates[productId] ?: productRepository.findById(productId)
-                ?: throw ProductNotFoundException(productId.toString())
+        items.forEach { require(it.quantity > 0) { "Quantity must be positive" } }
 
-            val productItemId = orderItem.productItemId
-                ?: throw ProductItemNotFoundException(productId.toString(), "null")
-            val targetItem = baseAggregate.items.firstOrNull { it.id == productItemId }
-                ?: throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
+        items.groupBy { it.productId }
+            .forEach { (productId, productItems) ->
+                productLockManager.withProductLock(productId) {
+                    val aggregate = productRepository.findById(productId)
+                        ?: throw ProductNotFoundException(productId.toString())
 
-            val requestedStock = StockQuantity.of(orderItem.quantity.value.toLong())
-            if (!targetItem.stock.isGreaterOrEqual(requestedStock)) {
-                throw InsufficientStockException(productId.toString(), productItemId.toString())
+                    val updatedItems = aggregate.items.toMutableList()
+
+                    productItems.forEach { itemCommand ->
+                        val productItemId = itemCommand.productItemId
+                            ?: throw ProductItemNotFoundException(productId.toString(), "null")
+                        val currentItemIndex = updatedItems.indexOfFirst { it.id == productItemId }
+                        if (currentItemIndex < 0) {
+                            throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
+                        }
+
+                        val currentItem = updatedItems[currentItemIndex]
+                        if (!currentItem.isActive()) {
+                            throw IllegalStateException("Product item $productItemId is not active")
+                        }
+
+                        val requested = StockQuantity.of(itemCommand.quantity.toLong())
+                        if (!currentItem.stock.isGreaterOrEqual(requested)) {
+                            throw InsufficientStockException(productId.toString(), productItemId.toString())
+                        }
+
+                        val updatedItem = currentItem.copy(stock = currentItem.stock - requested)
+                        updatedItems[currentItemIndex] = updatedItem
+
+                        val quantity = Quantity(itemCommand.quantity)
+                        val lineSubtotal = currentItem.unitPrice * quantity.value
+                        subtotal += lineSubtotal
+                        drafts += OrderItemDraft(
+                            productId = productId,
+                            productName = aggregate.product.name,
+                            productItemId = productItemId,
+                            quantity = quantity,
+                            unitPrice = currentItem.unitPrice,
+                            subtotal = lineSubtotal,
+                        )
+                    }
+
+                    productRepository.update(ProductWithItems(aggregate.product, updatedItems))
+                }
             }
 
-            val updatedItem = targetItem.copy(stock = targetItem.stock - requestedStock)
-            val updatedItems = baseAggregate.items.map { existing ->
-                if (existing.id == productItemId) updatedItem else existing
-            }
-            updates[productId] = ProductWithItems(baseAggregate.product, updatedItems)
-        }
-
-        return updates
+        return ReservationResult(drafts = drafts, subtotal = subtotal)
     }
 
     private fun validateCoupon(coupon: Coupon) {
@@ -318,10 +306,16 @@ class OrderUseCase(
     }
 
     private data class OrderItemDraft(
-        val productAggregate: ProductWithItems,
+        val productId: UUID,
+        val productName: String,
         val productItemId: UUID?,
         val quantity: Quantity,
         val unitPrice: Money,
+        val subtotal: Money,
+    )
+
+    private data class ReservationResult(
+        val drafts: List<OrderItemDraft>,
         val subtotal: Money,
     )
 
