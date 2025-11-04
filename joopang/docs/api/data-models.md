@@ -1,7 +1,3 @@
-```dbml 
-// hp domain data model (inferred from existing notes) https://dbdiagram.io/d/69018c17357668b7321a0975
-// Types and primary keys inferred; adjust as actual schema evolves.
-
 Table users {
   id uuid [pk]
   email varchar [not null, unique]
@@ -35,8 +31,7 @@ Table products {
   status ProductStatus
   seller_id uuid [ref: > sellers.id]
   category_id uuid [ref: > categories.id]
-  price_amount decimal
-  price_currency varchar
+  price decimal
   discount_rate decimal
   version int
 }
@@ -45,13 +40,11 @@ Table product_items {
   id uuid [pk]
   product_id uuid [ref: > products.id]
   name varchar
-  unit_price decimal
+  price decimal
   description text
   stock decimal
   status ProductItemStatus
   code varchar [note: 'sku = productCode-itemCode']
-  price_amount decimal
-  price_unit varchar
 }
 
 Table orders {
@@ -72,11 +65,9 @@ Table order_items {
   product_id uuid [ref: > products.id, note: 'nullable']
   product_item_id uuid [ref: - product_items.id, note: 'nullable']
   product_name varchar
-  price_amount decimal
   quantity int
-  unit_amount decimal
-  discount_amount decimal
-  subtotal_amount decimal
+  unit_price decimal
+  amount decimal
   refunded_amount decimal
   refunded_quantity int
 }
@@ -85,14 +76,14 @@ Table order_discounts {
   id uuid [pk]
   order_id uuid [ref: > orders.id]
   type OrderDiscountType
-  reference_id uuid
+  reference_id uuid [note: 'nullable, couponId 혹은 pointId']
   price decimal
   coupon_id uuid [ref: - coupons.id, note: 'nullable']
 }
 
 Table deliveries {
   id uuid [pk]
-  order_id uuid [ref: > orders.id]
+  order_item_id uuid [ref: > order_items.id]
   type DeliveryType
   zip_code varchar
   base_address varchar
@@ -223,4 +214,3 @@ Enum PaymentStatus {
   REFUNDED
   PARTIAL_REFUNDED
 }
-```

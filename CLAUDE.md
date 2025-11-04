@@ -2,6 +2,80 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Prompt Engineering Guidelines
+
+When prompting Claude Code or Codex for changes in this repository, follow the structure below so the assistants receive enough context to respond accurately and efficiently.
+
+### 1. Frame the task up front
+- State the goal in one sentence (`"Fix null pointer when charging points"`).
+- Mention the expected output format (e.g., "provide patch", "summarize findings", "no code changes").
+- Clarify whether you want step-by-step reasoning or just the final answer.
+
+### 2. Provide repository context Claude cannot infer
+- Reference relevant files with workspace-relative paths and line numbers when possible (`PointService.kt:45`).
+- Summarize domain rules that influence the change (point increments of 100, max 1,000,000 balance).
+- Call out existing documentation or comments that must stay consistent.
+- Note any external constraints (no network, keep ASCII, reuse ReentrantLock strategy, etc.).
+
+### 3. Define acceptance criteria
+- List functional expectations and edge cases to cover.
+- Specify tests or commands to run (`./gradlew test`, targeted test classes, Jacoco report if needed).
+- Include performance or concurrency conditions (e.g., "maintain per-user locking").
+
+### 4. Explain how to validate the work
+- Point to required test suites or manual checks.
+- State whether to update or create new tests.
+- Mention follow-up tasks such as documenting API changes or updating README.
+
+### 5. Ask for the right level of detail
+- Decide between a quick fix, deep architectural review, or brainstorming options.
+- Request iterative feedback if unsure of the direction ("Propose three approaches before coding").
+- For large tasks, ask the assistant to outline a plan before editing.
+
+### Prompt templates
+
+**Bug fix**
+```
+Goal: <short description>
+Context:
+- Issue observed at <path:line>
+- Related classes: <file list>
+Constraints:
+- Preserve <rule>
+- No new dependencies
+Acceptance criteria:
+- <list>
+Validation:
+- ./gradlew test --tests "..."
+Deliverable: <patch | summary>
+```
+
+**Feature addition**
+```
+Goal: <feature>
+Context:
+- Current behaviour: <summary>
+- Domain rules: <summary>
+Plan request: Ask for a brief implementation plan first.
+Implementation constraints:
+- Follow existing locking strategy
+- Update docs in CLAUDE.md if behaviour changes
+Acceptance criteria:
+- <list>
+Validation:
+- ./gradlew build
+Deliverable: Proposed plan -> apply_patch diff
+```
+
+**Code review**
+```
+Goal: Review MR #<id>
+Diff summary: <key changes>
+Focus areas: correctness, concurrency, test coverage
+Questions: <open questions>
+Deliverable: Findings ordered by severity, then risks/tests.
+```
+
 ## Project Overview
 
 This is a Spring Boot application implementing a point management system with TDD practices. The project demonstrates:
