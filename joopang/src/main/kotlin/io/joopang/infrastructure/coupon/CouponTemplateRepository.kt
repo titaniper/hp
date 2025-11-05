@@ -2,7 +2,6 @@ package io.joopang.infrastructure.coupon
 
 import io.joopang.domain.common.Money
 import io.joopang.domain.coupon.CouponTemplate
-import io.joopang.domain.coupon.CouponTemplateRepository
 import io.joopang.domain.coupon.CouponTemplateStatus
 import io.joopang.domain.coupon.CouponType
 import org.springframework.stereotype.Repository
@@ -13,7 +12,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-class CouponTemplateRepositoryImpl : CouponTemplateRepository {
+open class CouponTemplateRepository {
 
     private val store = ConcurrentHashMap<UUID, CouponTemplate>()
 
@@ -21,9 +20,9 @@ class CouponTemplateRepositoryImpl : CouponTemplateRepository {
         seed()
     }
 
-    override fun findById(templateId: UUID): CouponTemplate? = store[templateId]
+    open fun findById(templateId: UUID): CouponTemplate? = store[templateId]
 
-    override fun save(template: CouponTemplate): CouponTemplate {
+    open fun save(template: CouponTemplate): CouponTemplate {
         store[template.id] = template
         return template
     }

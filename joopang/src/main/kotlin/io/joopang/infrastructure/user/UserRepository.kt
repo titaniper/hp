@@ -4,13 +4,12 @@ import io.joopang.domain.common.Email
 import io.joopang.domain.common.Money
 import io.joopang.domain.common.PasswordHash
 import io.joopang.domain.user.User
-import io.joopang.domain.user.UserRepository
 import org.springframework.stereotype.Repository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-class UserRepositoryImpl : UserRepository {
+open class UserRepository {
 
     private val store = ConcurrentHashMap<UUID, User>()
 
@@ -18,14 +17,14 @@ class UserRepositoryImpl : UserRepository {
         seed()
     }
 
-    override fun findById(userId: UUID): User? = store[userId]
+    open fun findById(userId: UUID): User? = store[userId]
 
-    override fun save(user: User): User {
+    open fun save(user: User): User {
         store[user.id] = user
         return user
     }
 
-    override fun findAll(): List<User> = store.values.toList()
+    open fun findAll(): List<User> = store.values.toList()
 
     private fun seed() {
         val customerId = UUID.fromString("aaaaaaaa-1111-2222-3333-444444444444")

@@ -7,7 +7,6 @@ import io.joopang.domain.product.ProductCode
 import io.joopang.domain.product.ProductItem
 import io.joopang.domain.product.ProductItemCode
 import io.joopang.domain.product.ProductItemStatus
-import io.joopang.domain.product.ProductRepository
 import io.joopang.domain.product.ProductSearchCondition
 import io.joopang.domain.product.ProductSort
 import io.joopang.domain.product.ProductStatus
@@ -20,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 @Repository
-class ProductRepositoryImpl : ProductRepository {
+open class ProductRepository {
 
     private val products = CopyOnWriteArrayList<Product>()
     private val productItems = CopyOnWriteArrayList<ProductItem>()
@@ -31,7 +30,7 @@ class ProductRepositoryImpl : ProductRepository {
         seed()
     }
 
-    override fun findAll(condition: ProductSearchCondition): List<ProductWithItems> {
+    open fun findAll(condition: ProductSearchCondition): List<ProductWithItems> {
         val filtered = products.filter { product ->
             condition.categoryId?.let { product.categoryId == it } ?: true
         }
@@ -48,7 +47,7 @@ class ProductRepositoryImpl : ProductRepository {
         }
     }
 
-    override fun findTopSelling(startDateInclusive: LocalDate, limit: Int): List<ProductWithItems> =
+    open fun findTopSelling(startDateInclusive: LocalDate, limit: Int): List<ProductWithItems> =
         products
             .map { product ->
                 product to totalSalesSince(product.id, startDateInclusive)
@@ -59,13 +58,13 @@ class ProductRepositoryImpl : ProductRepository {
                 ProductWithItems(product, items(product.id))
             }
 
-    override fun findById(productId: UUID): ProductWithItems? =
+    open fun findById(productId: UUID): ProductWithItems? =
         products.firstOrNull { it.id == productId }
             ?.let { found ->
                 ProductWithItems(found, items(found.id))
             }
 
-    override fun save(aggregate: ProductWithItems): ProductWithItems {
+    open fun save(aggregate: ProductWithItems): ProductWithItems {
         require(products.none { it.id == aggregate.product.id }) {
             "Product with id ${aggregate.product.id} already exists"
         }
@@ -76,7 +75,7 @@ class ProductRepositoryImpl : ProductRepository {
         return ProductWithItems(aggregate.product, items(aggregate.product.id))
     }
 
-    override fun update(aggregate: ProductWithItems): ProductWithItems {
+    open fun update(aggregate: ProductWithItems): ProductWithItems {
         val index = products.indexOfFirst { it.id == aggregate.product.id }
         require(index >= 0) { "Product with id ${aggregate.product.id} not found" }
         products[index] = aggregate.product

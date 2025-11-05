@@ -4,15 +4,15 @@ import io.joopang.domain.common.Email
 import io.joopang.domain.common.Money
 import io.joopang.domain.common.PasswordHash
 import io.joopang.domain.coupon.Coupon
-import io.joopang.domain.coupon.CouponRepository
 import io.joopang.domain.coupon.CouponStatus
 import io.joopang.domain.coupon.CouponTemplate
-import io.joopang.domain.coupon.CouponTemplateRepository
 import io.joopang.domain.coupon.CouponTemplateStatus
 import io.joopang.domain.coupon.CouponType
 import io.joopang.domain.user.User
-import io.joopang.domain.user.UserRepository
 import io.joopang.infrastructure.coupon.CouponLockManagerImpl
+import io.joopang.infrastructure.coupon.CouponRepository
+import io.joopang.infrastructure.coupon.CouponTemplateRepository
+import io.joopang.infrastructure.user.UserRepository
 import io.kotest.assertions.throwables.shouldThrowExactly
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -182,7 +182,7 @@ class CouponUseCaseTest : DescribeSpec({
     }
 })
 
-private class InMemoryCouponTemplateRepository(initial: CouponTemplate) : CouponTemplateRepository {
+private class InMemoryCouponTemplateRepository(initial: CouponTemplate) : CouponTemplateRepository() {
 
     private val templateRef = AtomicReference(initial)
 
@@ -202,7 +202,7 @@ private class InMemoryCouponTemplateRepository(initial: CouponTemplate) : Coupon
 
 private class InMemoryCouponRepository(
     coupons: List<Coupon> = emptyList(),
-) : CouponRepository {
+) : CouponRepository() {
 
     private val store = ConcurrentHashMap<UUID, Coupon>(coupons.associateBy { it.id })
 
@@ -233,7 +233,7 @@ private class InMemoryCouponRepository(
     fun all(): List<Coupon> = store.values.toList()
 }
 
-private class InMemoryUserRepository(userIds: List<UUID>) : UserRepository {
+private class InMemoryUserRepository(userIds: List<UUID>) : UserRepository() {
 
     private val store = ConcurrentHashMap<UUID, User>()
 

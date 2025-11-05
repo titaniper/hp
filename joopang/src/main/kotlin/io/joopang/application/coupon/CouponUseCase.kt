@@ -2,12 +2,12 @@ package io.joopang.application.coupon
 
 import io.joopang.application.coupon.CouponLockManager
 import io.joopang.domain.coupon.Coupon
-import io.joopang.domain.coupon.CouponRepository
 import io.joopang.domain.coupon.CouponStatus
-import io.joopang.domain.coupon.CouponTemplateRepository
 import io.joopang.domain.coupon.CouponType
 import io.joopang.domain.user.UserNotFoundException
-import io.joopang.domain.user.UserRepository
+import io.joopang.infrastructure.coupon.CouponRepository
+import io.joopang.infrastructure.coupon.CouponTemplateRepository
+import io.joopang.infrastructure.user.UserRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.time.temporal.ChronoUnit

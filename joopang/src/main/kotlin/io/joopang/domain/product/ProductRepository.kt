@@ -19,11 +19,3 @@ data class ProductWithItems(
     val product: Product,
     val items: List<ProductItem>,
 )
-
-interface ProductRepository {
-    fun findAll(condition: ProductSearchCondition = ProductSearchCondition()): List<ProductWithItems>
-    fun findTopSelling(startDateInclusive: LocalDate, limit: Int): List<ProductWithItems>
-    fun findById(productId: UUID): ProductWithItems?
-    fun save(aggregate: ProductWithItems): ProductWithItems
-    fun update(aggregate: ProductWithItems): ProductWithItems
-}

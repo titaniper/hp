@@ -2,7 +2,6 @@ package io.joopang.infrastructure.coupon
 
 import io.joopang.domain.coupon.Coupon
 import io.joopang.domain.coupon.CouponNotFoundException
-import io.joopang.domain.coupon.CouponRepository
 import io.joopang.domain.coupon.CouponStatus
 import io.joopang.domain.coupon.CouponType
 import org.springframework.stereotype.Repository
@@ -13,7 +12,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-class CouponRepositoryImpl : CouponRepository {
+open class CouponRepository {
 
     private val store = ConcurrentHashMap<UUID, Coupon>()
 
@@ -21,23 +20,23 @@ class CouponRepositoryImpl : CouponRepository {
         seed()
     }
 
-    override fun findById(couponId: UUID): Coupon? = store[couponId]
+    open fun findById(couponId: UUID): Coupon? = store[couponId]
 
-    override fun findUserCoupons(userId: UUID): List<Coupon> =
+    open fun findUserCoupons(userId: UUID): List<Coupon> =
         store.values.filter { it.userId == userId }
 
-    override fun findUserCoupon(userId: UUID, couponId: UUID): Coupon? =
+    open fun findUserCoupon(userId: UUID, couponId: UUID): Coupon? =
         store[couponId]?.takeIf { it.userId == userId }
 
-    override fun findUserCouponByTemplate(userId: UUID, couponTemplateId: UUID): Coupon? =
+    open fun findUserCouponByTemplate(userId: UUID, couponTemplateId: UUID): Coupon? =
         store.values.firstOrNull { it.userId == userId && it.couponTemplateId == couponTemplateId }
 
-    override fun save(coupon: Coupon): Coupon {
+    open fun save(coupon: Coupon): Coupon {
         store[coupon.id] = coupon
         return coupon
     }
 
-    override fun markUsed(couponId: UUID, orderId: UUID, usedAt: Instant): Coupon {
+    open fun markUsed(couponId: UUID, orderId: UUID, usedAt: Instant): Coupon {
         val coupon = store[couponId] ?: throw CouponNotFoundException(couponId.toString())
         require(coupon.status == CouponStatus.AVAILABLE) {
             "Coupon $couponId is not available"

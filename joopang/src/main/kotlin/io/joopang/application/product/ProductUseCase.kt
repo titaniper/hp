@@ -9,12 +9,12 @@ import io.joopang.domain.product.ProductItem
 import io.joopang.domain.product.ProductItemCode
 import io.joopang.domain.product.ProductItemStatus
 import io.joopang.domain.product.ProductNotFoundException
-import io.joopang.domain.product.ProductRepository
 import io.joopang.domain.product.ProductSearchCondition
 import io.joopang.domain.product.ProductSort
 import io.joopang.domain.product.ProductStatus
 import io.joopang.domain.product.ProductWithItems
 import io.joopang.domain.product.StockQuantity
+import io.joopang.infrastructure.product.ProductRepository
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.time.LocalDate
