@@ -23,6 +23,8 @@ import java.util.UUID
 @Service
 class ProductService(
     private val productRepository: ProductRepository,
+
+    // TODO: cachable 로 개선
     private val cacheService: CacheService,
 ) {
 
