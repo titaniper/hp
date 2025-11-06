@@ -4,6 +4,7 @@
 - 실시간 재고 확인, 주문/결제, 선착순 쿠폰 발급을 다루는 학습용 이커머스 백엔드입니다.
 - Kotlin + Spring Boot 기반의 모놀리식 애플리케이션으로, 도메인별 헥사고날 구조(`presentation → application → domain → infrastructure`)를 따릅니다.
 - 각 도메인은 인메모리 어댑터를 제공하며, 요구사항 확장 시 외부 시스템으로 대체하도록 설계되었습니다.
+- ./gradlew test
 
 ## Tech Stack
 - Kotlin 1.9, JDK 17

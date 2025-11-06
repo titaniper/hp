@@ -2,6 +2,6 @@ package io.joopang.services.coupon.application
 
 import java.util.UUID
 
-fun interface CouponLockManager {
+interface CouponLockManager {
     fun <T> withTemplateLock(templateId: UUID, action: () -> T): T
 }
