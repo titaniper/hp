@@ -14,13 +14,16 @@ class UserService(
     private val userRepository: UserRepository,
 ) {
 
-    fun listUsers(): List<User> = userRepository.findAll()
+    fun listUsers(): List<Output> =
+        userRepository.findAll()
+            .map { it.toOutput() }
 
-    fun getUser(id: UUID): User =
+    fun getUser(id: UUID): Output =
         userRepository.findById(id)
+            ?.toOutput()
             ?: throw UserNotFoundException(id.toString())
 
-    fun registerUser(command: RegisterUserCommand): User {
+    fun registerUser(command: RegisterUserCommand): Output {
         val user = User(
             id = command.id ?: UUID.randomUUID(),
             email = command.email,
@@ -29,8 +32,18 @@ class UserService(
             lastName = command.lastName,
             balance = command.balance ?: Money.ZERO,
         )
-        return userRepository.save(user)
+        return userRepository.save(user).toOutput()
     }
+
+    private fun User.toOutput(): Output =
+        Output(
+            id = id,
+            email = email,
+            firstName = firstName,
+            lastName = lastName,
+            fullName = fullName(),
+            balance = balance,
+        )
 
     data class RegisterUserCommand(
         val email: Email,
@@ -39,5 +52,14 @@ class UserService(
         val lastName: String?,
         val balance: Money?,
         val id: UUID? = null,
+    )
+
+    data class Output(
+        val id: UUID,
+        val email: Email,
+        val firstName: String?,
+        val lastName: String?,
+        val fullName: String?,
+        val balance: Money,
     )
 }

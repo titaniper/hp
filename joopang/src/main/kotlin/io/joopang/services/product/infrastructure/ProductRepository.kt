@@ -7,8 +7,6 @@ import io.joopang.services.product.domain.ProductCode
 import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductItemCode
 import io.joopang.services.product.domain.ProductItemStatus
-import io.joopang.services.product.domain.ProductSearchCondition
-import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
@@ -30,39 +28,21 @@ open class ProductRepository {
         seed()
     }
 
-    open fun findAll(condition: ProductSearchCondition): List<ProductWithItems> {
-        val filtered = products.filter { product ->
-            condition.categoryId?.let { product.categoryId == it } ?: true
-        }
-
-        val sorted = when (condition.sort) {
-            ProductSort.NEWEST -> filtered.sortedByDescending { productCreatedAt[it.id] ?: LocalDate.MIN }
-            ProductSort.SALES -> filtered.sortedByDescending { totalSalesSince(it.id, LocalDate.MIN) }
-            ProductSort.PRICE_ASC -> filtered.sortedBy { it.price.toBigDecimal() }
-            ProductSort.PRICE_DESC -> filtered.sortedByDescending { it.price.toBigDecimal() }
-        }
-
-        return sorted.map { product ->
+    open fun findAll(): List<ProductWithItems> =
+        products.map { product ->
             ProductWithItems(product, items(product.id))
         }
-    }
-
-    open fun findTopSelling(startDateInclusive: LocalDate, limit: Int): List<ProductWithItems> =
-        products
-            .map { product ->
-                product to totalSalesSince(product.id, startDateInclusive)
-            }
-            .sortedByDescending { (_, sales) -> sales }
-            .take(limit)
-            .map { (product, _) ->
-                ProductWithItems(product, items(product.id))
-            }
 
     open fun findById(productId: UUID): ProductWithItems? =
         products.firstOrNull { it.id == productId }
             ?.let { found ->
                 ProductWithItems(found, items(found.id))
             }
+
+    open fun findProductCreatedAt(productId: UUID): LocalDate? = productCreatedAt[productId]
+
+    open fun findDailySales(productId: UUID): List<DailySale> =
+        dailySales[productId] ?: emptyList()
 
     open fun save(aggregate: ProductWithItems): ProductWithItems {
         require(products.none { it.id == aggregate.product.id }) {
@@ -93,12 +73,6 @@ open class ProductRepository {
         productItems.removeIf { it.productId == productId }
         productItems.addAll(newItems)
     }
-
-    private fun totalSalesSince(productId: UUID, startDateInclusive: LocalDate): Int =
-        dailySales[productId]
-            ?.filter { !it.date.isBefore(startDateInclusive) }
-            ?.sumOf { it.quantity }
-            ?: 0
 
     private fun seed() {
         if (products.isNotEmpty()) {
@@ -257,7 +231,7 @@ open class ProductRepository {
         productCreatedAt[product.id] = createdAt
     }
 
-    private data class DailySale(
+    data class DailySale(
         val date: LocalDate,
         val quantity: Int,
     )

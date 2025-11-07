@@ -1,7 +1,6 @@
 package io.joopang.services.coupon.infrastructure
 
 import io.joopang.services.coupon.domain.Coupon
-import io.joopang.services.coupon.domain.CouponNotFoundException
 import io.joopang.services.coupon.domain.CouponStatus
 import io.joopang.services.coupon.domain.CouponType
 import org.springframework.stereotype.Repository
@@ -34,16 +33,6 @@ open class CouponRepository {
     open fun save(coupon: Coupon): Coupon {
         store[coupon.id] = coupon
         return coupon
-    }
-
-    open fun markUsed(couponId: UUID, orderId: UUID, usedAt: Instant): Coupon {
-        val coupon = store[couponId] ?: throw CouponNotFoundException(couponId.toString())
-        require(coupon.status == CouponStatus.AVAILABLE) {
-            "Coupon $couponId is not available"
-        }
-        val updated = coupon.markUsed(orderId = orderId, usedAt = usedAt)
-        store[couponId] = updated
-        return updated
     }
 
     private fun seed() {

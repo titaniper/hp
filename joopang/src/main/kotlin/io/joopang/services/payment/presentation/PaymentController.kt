@@ -2,7 +2,6 @@ package io.joopang.services.payment.presentation
 
 import io.joopang.services.common.domain.Money
 import io.joopang.services.payment.application.PaymentService
-import io.joopang.services.payment.domain.Payment
 import io.joopang.services.payment.domain.PaymentMethod
 import io.joopang.services.payment.domain.PaymentStatus
 import org.springframework.http.HttpStatus
@@ -48,7 +47,7 @@ class PaymentController(
             .registerPayment(request.toCommand())
             .toResponse()
 
-    private fun Payment.toResponse(): PaymentResponse =
+    private fun PaymentService.Output.toResponse(): PaymentResponse =
         PaymentResponse(
             id = id,
             orderId = orderId,

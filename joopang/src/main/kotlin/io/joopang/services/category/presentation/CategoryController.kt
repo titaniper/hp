@@ -1,7 +1,6 @@
 package io.joopang.services.category.presentation
 
 import io.joopang.services.category.application.CategoryService
-import io.joopang.services.category.domain.Category
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -41,7 +40,7 @@ class CategoryController(
             .createCategory(request.toCommand())
             .toResponse()
 
-    private fun Category.toResponse(): CategoryResponse =
+    private fun CategoryService.Output.toResponse(): CategoryResponse =
         CategoryResponse(
             id = id,
             name = name,

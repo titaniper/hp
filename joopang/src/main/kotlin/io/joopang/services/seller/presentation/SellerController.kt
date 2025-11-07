@@ -1,7 +1,6 @@
 package io.joopang.services.seller.presentation
 
 import io.joopang.services.seller.application.SellerService
-import io.joopang.services.seller.domain.Seller
 import io.joopang.services.seller.domain.SellerType
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -41,7 +40,7 @@ class SellerController(
             .registerSeller(request.toCommand())
             .toResponse()
 
-    private fun Seller.toResponse(): SellerResponse =
+    private fun SellerService.Output.toResponse(): SellerResponse =
         SellerResponse(
             id = id,
             name = name,

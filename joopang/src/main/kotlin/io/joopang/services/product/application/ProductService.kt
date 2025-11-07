@@ -9,7 +9,6 @@ import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductItemCode
 import io.joopang.services.product.domain.ProductItemStatus
 import io.joopang.services.product.domain.ProductNotFoundException
-import io.joopang.services.product.domain.ProductSearchCondition
 import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
@@ -31,26 +30,33 @@ class ProductService(
     fun getProducts(
         categoryId: UUID? = null,
         sort: ProductSort = ProductSort.NEWEST,
-    ): List<ProductWithItems> {
+    ): List<Output> {
         val cacheKey = buildProductsCacheKey(categoryId, sort)
-        val cached = cacheService.get(cacheKey) as? List<ProductWithItems>
+        val cached = cacheService.get(cacheKey) as? List<Output>
         if (cached != null) {
             return cached
         }
 
-        val products = productRepository.findAll(
-            ProductSearchCondition(categoryId = categoryId, sort = sort),
-        )
-        cacheService.put(cacheKey, products, DEFAULT_CACHE_TTL_SECONDS)
+        val products = productRepository.findAll()
+            .let { aggregates ->
+                aggregates
+                    .filter { aggregate ->
+                        categoryId?.let { aggregate.product.categoryId == it } ?: true
+                    }
+                    .sortedWith(productComparator(sort))
+            }
+        val outputs = products.map { it.toOutput() }
+        cacheService.put(cacheKey, outputs, DEFAULT_CACHE_TTL_SECONDS)
 
-        return products
+        return outputs
     }
 
-    fun getProduct(productId: UUID): ProductWithItems =
+    fun getProduct(productId: UUID): Output =
         productRepository.findById(productId)
+            ?.toOutput()
             ?: throw ProductNotFoundException(productId.toString())
 
-    fun createProduct(command: CreateProductCommand): ProductWithItems {
+    fun createProduct(command: CreateProductCommand): Output {
         require(command.items.isNotEmpty()) { "Product must have at least one item" }
 
         val productId = UUID.randomUUID()
@@ -84,10 +90,10 @@ class ProductService(
         val saved = productRepository.save(ProductWithItems(product, items))
         invalidateProductCaches(product.categoryId)
 
-        return saved
+        return saved.toOutput()
     }
 
-    fun updateProduct(productId: UUID, command: UpdateProductCommand): ProductWithItems {
+    fun updateProduct(productId: UUID, command: UpdateProductCommand): Output {
         require(command.items.isNotEmpty()) { "Product must have at least one item" }
 
         val existing = productRepository.findById(productId)
@@ -122,32 +128,34 @@ class ProductService(
         val updatedAggregate = productRepository.update(ProductWithItems(updatedProduct, updatedItems))
         invalidateProductCaches(existing.product.categoryId, updatedProduct.categoryId)
 
-        return updatedAggregate
+        return updatedAggregate.toOutput()
     }
 
-    fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsResult {
+    fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
 
         val startDate = LocalDate.now().minusDays(days)
-        val topProducts = productRepository.findTopSelling(startDate, limit)
-
-        val ranked = topProducts
+        val ranked = productRepository.findAll()
+            .map { aggregate ->
+                aggregate to totalSalesSince(aggregate.product.id, startDate)
+            }
+            .sortedByDescending { (_, sales) -> sales }
             .take(limit)
-            .mapIndexed { index, aggregate ->
-                TopProduct(
+            .mapIndexed { index, (aggregate, _) ->
+                TopProductOutput(
                     rank = index + 1,
-                    aggregate = aggregate,
+                    product = aggregate.toOutput(),
                 )
             }
 
-        return TopProductsResult(
+        return TopProductsOutput(
             period = "${days}days",
             products = ranked,
         )
     }
 
-    fun checkStock(productId: UUID, quantity: Long): StockCheckResult {
+    fun checkStock(productId: UUID, quantity: Long): StockCheckOutput {
         require(quantity > 0) { "Requested quantity must be at least 1" }
 
         val aggregate = productRepository.findById(productId)
@@ -159,11 +167,10 @@ class ProductService(
             .map { it.stock }
             .fold(StockQuantity.ZERO) { acc, stock -> acc + stock }
 
-        return StockCheckResult(
+        return StockCheckOutput(
             available = available.isGreaterOrEqual(requested),
             currentStock = available,
             requested = requested,
-            aggregate = aggregate,
         )
     }
 
@@ -178,6 +185,52 @@ class ProductService(
             }
         }
     }
+
+    private fun productComparator(sort: ProductSort): Comparator<ProductWithItems> =
+        when (sort) {
+            ProductSort.NEWEST -> compareByDescending { aggregate ->
+                productRepository.findProductCreatedAt(aggregate.product.id) ?: LocalDate.MIN
+            }
+            ProductSort.SALES -> compareByDescending { aggregate ->
+                totalSalesSince(aggregate.product.id, LocalDate.MIN)
+            }
+            ProductSort.PRICE_ASC -> compareBy { aggregate -> aggregate.product.price.toBigDecimal() }
+            ProductSort.PRICE_DESC -> compareByDescending { aggregate -> aggregate.product.price.toBigDecimal() }
+        }
+
+    private fun totalSalesSince(productId: UUID, startDateInclusive: LocalDate): Int =
+        productRepository.findDailySales(productId)
+            .filter { !it.date.isBefore(startDateInclusive) }
+            .sumOf { it.quantity }
+
+    private fun ProductWithItems.toOutput(): Output =
+        Output(
+            id = product.id,
+            name = product.name,
+            code = product.code.value,
+            description = product.description,
+            content = product.content,
+            status = product.status,
+            sellerId = product.sellerId,
+            categoryId = product.categoryId,
+            price = product.price,
+            discountRate = product.discountRate?.value,
+            version = product.version,
+            viewCount = product.viewCount,
+            salesCount = product.salesCount,
+            items = items.map { it.toOutput() },
+        )
+
+    private fun ProductItem.toOutput(): Output.Item =
+        Output.Item(
+            id = id,
+            name = name,
+            unitPrice = unitPrice,
+            description = description,
+            stock = stock,
+            status = status,
+            code = code.value,
+        )
 
     data class CreateProductCommand(
         val name: String,
@@ -226,21 +279,47 @@ class ProductService(
         val code: String,
     )
 
-    data class TopProductsResult(
+    data class Output(
+        val id: UUID,
+        val name: String,
+        val code: String,
+        val description: String?,
+        val content: String?,
+        val status: ProductStatus,
+        val sellerId: UUID,
+        val categoryId: UUID,
+        val price: Money,
+        val discountRate: BigDecimal?,
+        val version: Int,
+        val viewCount: Int,
+        val salesCount: Int,
+        val items: List<Item>,
+    ) {
+        data class Item(
+            val id: UUID,
+            val name: String,
+            val unitPrice: Money,
+            val description: String?,
+            val stock: StockQuantity,
+            val status: ProductItemStatus,
+            val code: String,
+        )
+    }
+
+    data class TopProductsOutput(
         val period: String,
-        val products: List<TopProduct>,
+        val products: List<TopProductOutput>,
     )
 
-    data class TopProduct(
+    data class TopProductOutput(
         val rank: Int,
-        val aggregate: ProductWithItems,
+        val product: Output,
     )
 
-    data class StockCheckResult(
+    data class StockCheckOutput(
         val available: Boolean,
         val currentStock: StockQuantity,
         val requested: StockQuantity,
-        val aggregate: ProductWithItems,
     )
 
     companion object {

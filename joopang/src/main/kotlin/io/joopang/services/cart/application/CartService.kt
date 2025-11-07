@@ -25,12 +25,12 @@ class CartService(
     private val productRepository: ProductRepository,
 ) {
 
-    fun getCart(userId: UUID): CartView {
+    fun getCart(userId: UUID): Output {
         val items = cartItemRepository.findByUserId(userId)
         return buildView(userId, items)
     }
 
-    fun addItem(command: AddCartItemCommand): CartView {
+    fun addItem(command: AddCartItemCommand): Output {
         require(command.quantity > 0) { "Quantity to add must be positive" }
 
         val aggregate = findProductAggregate(command.productId)
@@ -64,7 +64,7 @@ class CartService(
         return getCart(command.userId)
     }
 
-    fun updateItemQuantity(command: UpdateCartItemQuantityCommand): CartView {
+    fun updateItemQuantity(command: UpdateCartItemQuantityCommand): Output {
         val newQuantity = Quantity(command.quantity)
         val existingItem = cartItemRepository.findById(command.cartItemId)
             ?: throw CartItemNotFoundException(command.cartItemId)
@@ -93,7 +93,7 @@ class CartService(
         return getCart(command.userId)
     }
 
-    fun removeItem(command: RemoveCartItemCommand): CartView {
+    fun removeItem(command: RemoveCartItemCommand): Output {
         val existingItem = cartItemRepository.findById(command.cartItemId)
             ?: throw CartItemNotFoundException(command.cartItemId)
 
@@ -106,7 +106,7 @@ class CartService(
         return getCart(command.userId)
     }
 
-    fun mergeCarts(command: MergeCartCommand): CartView {
+    fun mergeCarts(command: MergeCartCommand): Output {
         if (command.sourceUserId == command.targetUserId) {
             return getCart(command.targetUserId)
         }
@@ -194,9 +194,9 @@ class CartService(
         }
     }
 
-    private fun buildView(userId: UUID, items: List<CartItem>): CartView {
+    private fun buildView(userId: UUID, items: List<CartItem>): Output {
         if (items.isEmpty()) {
-            return CartView(
+            return Output(
                 userId = userId,
                 items = emptyList(),
                 totals = CartTotals(
@@ -217,7 +217,7 @@ class CartService(
         val itemViews = items.map { item ->
             val aggregate = aggregates[item.productId]
             if (aggregate == null) {
-                CartItemView(
+                ItemOutput(
                     cartItemId = item.id,
                     productId = item.productId,
                     productItemId = item.productItemId,
@@ -227,11 +227,11 @@ class CartService(
                     unitPrice = null,
                     subtotal = null,
                     available = false,
-                )
+                    )
             } else {
                 val productItem = aggregate.items.firstOrNull { it.id == item.productItemId }
                 if (productItem == null) {
-                    CartItemView(
+                    ItemOutput(
                         cartItemId = item.id,
                         productId = item.productId,
                         productItemId = item.productItemId,
@@ -258,7 +258,7 @@ class CartService(
                         )
                     }
 
-                    CartItemView(
+                    ItemOutput(
                         cartItemId = item.id,
                         productId = item.productId,
                         productItemId = item.productItemId,
@@ -275,7 +275,7 @@ class CartService(
 
         val totals = CartPricingCalculator.calculate(pricingLines)
 
-        return CartView(
+        return Output(
             userId = userId,
             items = itemViews,
             totals = totals,
@@ -305,13 +305,13 @@ class CartService(
         val targetUserId: UUID,
     )
 
-    data class CartView(
+    data class Output(
         val userId: UUID,
-        val items: List<CartItemView>,
+        val items: List<ItemOutput>,
         val totals: CartTotals,
     )
 
-    data class CartItemView(
+    data class ItemOutput(
         val cartItemId: UUID,
         val productId: UUID,
         val productItemId: UUID,

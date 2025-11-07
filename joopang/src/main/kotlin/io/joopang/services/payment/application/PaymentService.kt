@@ -15,18 +15,19 @@ class PaymentService(
     private val paymentRepository: PaymentRepository,
 ) {
 
-    fun listPayments(orderId: UUID?): List<Payment> =
+    fun listPayments(orderId: UUID?): List<Output> =
         if (orderId == null) {
             paymentRepository.findAll()
         } else {
             paymentRepository.findByOrderId(orderId)
-        }
+        }.map { it.toOutput() }
 
-    fun getPayment(id: UUID): Payment =
+    fun getPayment(id: UUID): Output =
         paymentRepository.findById(id)
+            ?.toOutput()
             ?: throw PaymentNotFoundException(id.toString())
 
-    fun registerPayment(command: RegisterPaymentCommand): Payment {
+    fun registerPayment(command: RegisterPaymentCommand): Output {
         val payment = Payment(
             id = command.id ?: UUID.randomUUID(),
             orderId = command.orderId,
@@ -41,8 +42,24 @@ class PaymentService(
             approvedAt = command.approvedAt,
             cancelledAt = command.cancelledAt,
         )
-        return paymentRepository.save(payment)
+        return paymentRepository.save(payment).toOutput()
     }
+
+    private fun Payment.toOutput(): Output =
+        Output(
+            id = id,
+            orderId = orderId,
+            paymentGateway = paymentGateway,
+            paymentMethod = paymentMethod,
+            paymentAmount = paymentAmount,
+            remainingBalance = remainingBalance,
+            status = status,
+            paymentKey = paymentKey,
+            transactionId = transactionId,
+            requestedAt = requestedAt,
+            approvedAt = approvedAt,
+            cancelledAt = cancelledAt,
+        )
 
     data class RegisterPaymentCommand(
         val orderId: UUID,
@@ -57,5 +74,20 @@ class PaymentService(
         val approvedAt: Instant?,
         val cancelledAt: Instant?,
         val id: UUID? = null,
+    )
+
+    data class Output(
+        val id: UUID,
+        val orderId: UUID,
+        val paymentGateway: String,
+        val paymentMethod: PaymentMethod,
+        val paymentAmount: Money,
+        val remainingBalance: Money,
+        val status: PaymentStatus,
+        val paymentKey: String?,
+        val transactionId: String?,
+        val requestedAt: Instant,
+        val approvedAt: Instant?,
+        val cancelledAt: Instant?,
     )
 }

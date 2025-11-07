@@ -17,18 +17,19 @@ class DeliveryService(
     private val deliveryRepository: DeliveryRepository,
 ) {
 
-    fun listDeliveries(orderItemId: UUID?): List<Delivery> =
+    fun listDeliveries(orderItemId: UUID?): List<Output> =
         if (orderItemId == null) {
             deliveryRepository.findAll()
         } else {
             deliveryRepository.findByOrderItemId(orderItemId)
-        }
+        }.map { it.toOutput() }
 
-    fun getDelivery(id: UUID): Delivery =
+    fun getDelivery(id: UUID): Output =
         deliveryRepository.findById(id)
+            ?.toOutput()
             ?: throw DeliveryNotFoundException(id.toString())
 
-    fun registerDelivery(command: RegisterDeliveryCommand): Delivery {
+    fun registerDelivery(command: RegisterDeliveryCommand): Output {
         val delivery = Delivery(
             id = command.id ?: UUID.randomUUID(),
             orderItemId = command.orderItemId,
@@ -40,8 +41,21 @@ class DeliveryService(
             trackingNumber = command.trackingNumber,
             deliveryFee = command.deliveryFee ?: Money.ZERO,
         )
-        return deliveryRepository.save(delivery)
+        return deliveryRepository.save(delivery).toOutput()
     }
+
+    private fun Delivery.toOutput(): Output =
+        Output(
+            id = id,
+            orderItemId = orderItemId,
+            type = type,
+            address = address,
+            receiverTel = receiverTel,
+            estimatedDeliveryDate = estimatedDeliveryDate,
+            status = status,
+            trackingNumber = trackingNumber,
+            deliveryFee = deliveryFee,
+        )
 
     data class RegisterDeliveryCommand(
         val orderItemId: UUID,
@@ -53,5 +67,17 @@ class DeliveryService(
         val trackingNumber: String?,
         val deliveryFee: Money?,
         val id: UUID? = null,
+    )
+
+    data class Output(
+        val id: UUID,
+        val orderItemId: UUID,
+        val type: DeliveryType,
+        val address: Address,
+        val receiverTel: PhoneNumber,
+        val estimatedDeliveryDate: LocalDate?,
+        val status: DeliveryStatus,
+        val trackingNumber: String?,
+        val deliveryFee: Money,
     )
 }

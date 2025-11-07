@@ -83,9 +83,9 @@ class ProductServiceTest {
     private class CountingProductRepository : ProductRepository() {
         var findAllCalls = 0
 
-        override fun findAll(condition: io.joopang.services.product.domain.ProductSearchCondition): List<io.joopang.services.product.domain.ProductWithItems> {
+        override fun findAll(): List<io.joopang.services.product.domain.ProductWithItems> {
             findAllCalls += 1
-            return super.findAll(condition)
+            return super.findAll()
         }
     }
 }

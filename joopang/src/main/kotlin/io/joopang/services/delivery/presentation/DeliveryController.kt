@@ -4,7 +4,6 @@ import io.joopang.services.common.domain.Address
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.PhoneNumber
 import io.joopang.services.delivery.application.DeliveryService
-import io.joopang.services.delivery.domain.Delivery
 import io.joopang.services.delivery.domain.DeliveryStatus
 import io.joopang.services.delivery.domain.DeliveryType
 import org.springframework.http.HttpStatus
@@ -50,7 +49,7 @@ class DeliveryController(
             .registerDelivery(request.toCommand())
             .toResponse()
 
-    private fun Delivery.toResponse(): DeliveryResponse =
+    private fun DeliveryService.Output.toResponse(): DeliveryResponse =
         DeliveryResponse(
             id = id,
             orderItemId = orderItemId,

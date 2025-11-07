@@ -6,6 +6,7 @@ import io.joopang.services.common.domain.Quantity
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponNotFoundException
 import io.joopang.services.coupon.domain.CouponType
+import io.joopang.services.coupon.domain.CouponStatus
 import io.joopang.services.coupon.domain.InvalidCouponException
 import io.joopang.services.order.domain.Order
 import io.joopang.services.order.domain.OrderAggregate
@@ -41,7 +42,7 @@ class OrderService(
     private val productLockManager: ProductLockManager,
 ) {
 
-    fun createOrder(command: CreateOrderCommand): OrderAggregate {
+    fun createOrder(command: CreateOrderCommand): Output {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
 
@@ -110,16 +111,19 @@ class OrderService(
             discounts = orderDiscounts,
         )
 
-        return orderRepository.save(aggregate)
+        return orderRepository.save(aggregate).toOutput()
     }
 
-    fun getOrder(orderId: UUID): OrderAggregate =
+    fun getOrder(orderId: UUID): Output =
         orderRepository.findById(orderId)
+            ?.toOutput()
             ?: throw OrderNotFoundException(orderId.toString())
 
-    fun listOrders(): List<OrderAggregate> = orderRepository.findAll()
+    fun listOrders(): List<Output> =
+        orderRepository.findAll()
+            .map { it.toOutput() }
 
-    fun processPayment(command: ProcessPaymentCommand): PaymentResult {
+    fun processPayment(command: ProcessPaymentCommand): PaymentOutput {
         val aggregate = orderRepository.findById(command.orderId)
             ?: throw OrderNotFoundException(command.orderId.toString())
 
@@ -138,12 +142,21 @@ class OrderService(
         userRepository.save(updatedUser)
 
         aggregate.discounts.forEach { discount ->
-            discount.couponId?.let {
-                couponRepository.markUsed(
-                    couponId = it,
+            discount.couponId?.let { couponId ->
+                val coupon = couponRepository.findById(couponId)
+                    ?: throw CouponNotFoundException(couponId.toString())
+                if (coupon.userId != aggregate.order.userId) {
+                    throw IllegalStateException("Coupon $couponId does not belong to user ${aggregate.order.userId}")
+                }
+                if (coupon.status != CouponStatus.AVAILABLE) {
+                    throw IllegalStateException("Coupon $couponId is not available")
+                }
+                val usedAt = Instant.now()
+                val updatedCoupon = coupon.markUsed(
                     orderId = aggregate.order.id,
-                    usedAt = Instant.now(),
+                    usedAt = usedAt,
                 )
+                couponRepository.save(updatedCoupon)
             }
         }
 
@@ -174,7 +187,7 @@ class OrderService(
             dataTransmissionService.addToRetryQueue(payload)
         }
 
-        return PaymentResult(
+        return PaymentOutput(
             orderId = updatedAggregate.order.id,
             paidAmount = updatedAggregate.order.payableAmount(),
             remainingBalance = updatedUser.balance,
@@ -272,6 +285,46 @@ class OrderService(
         return OrderMonth.from(zoned.year, zoned.monthValue)
     }
 
+    private fun OrderAggregate.toOutput(): Output =
+        Output(
+            orderId = order.id,
+            userId = order.userId,
+            status = order.status,
+            recipientName = order.recipientName,
+            orderedAt = order.orderedAt,
+            paidAt = order.paidAt,
+            orderMonth = order.orderMonth,
+            totalAmount = order.totalAmount,
+            discountAmount = order.discountAmount,
+            payableAmount = order.payableAmount(),
+            imageUrl = order.imageUrl,
+            memo = order.memo,
+            items = items.map { it.toOutput() },
+            discounts = discounts.map { it.toOutput() },
+        )
+
+    private fun OrderItem.toOutput(): Output.Item =
+        Output.Item(
+            orderItemId = id,
+            productId = productId,
+            productItemId = productItemId,
+            productName = productName,
+            quantity = quantity,
+            unitPrice = unitPrice,
+            subtotal = subtotal,
+            refundedAmount = refundedAmount,
+            refundedQuantity = refundedQuantity,
+        )
+
+    private fun OrderDiscount.toOutput(): Output.Discount =
+        Output.Discount(
+            discountId = id,
+            type = type,
+            referenceId = referenceId,
+            amount = price,
+            couponId = couponId,
+        )
+
     data class CreateOrderCommand(
         val userId: UUID,
         val recipientName: String,
@@ -293,7 +346,44 @@ class OrderService(
         val userId: UUID,
     )
 
-    data class PaymentResult(
+    data class Output(
+        val orderId: UUID,
+        val userId: UUID,
+        val status: OrderStatus,
+        val recipientName: String,
+        val orderedAt: Instant,
+        val paidAt: Instant?,
+        val orderMonth: OrderMonth,
+        val totalAmount: Money,
+        val discountAmount: Money,
+        val payableAmount: Money,
+        val imageUrl: String?,
+        val memo: String?,
+        val items: List<Item>,
+        val discounts: List<Discount>,
+    ) {
+        data class Item(
+            val orderItemId: UUID,
+            val productId: UUID?,
+            val productItemId: UUID?,
+            val productName: String,
+            val quantity: Quantity,
+            val unitPrice: Money,
+            val subtotal: Money,
+            val refundedAmount: Money,
+            val refundedQuantity: Quantity,
+        )
+
+        data class Discount(
+            val discountId: UUID,
+            val type: OrderDiscountType,
+            val referenceId: UUID?,
+            val amount: Money,
+            val couponId: UUID?,
+        )
+    }
+
+    data class PaymentOutput(
         val orderId: UUID,
         val paidAmount: Money,
         val remainingBalance: Money,

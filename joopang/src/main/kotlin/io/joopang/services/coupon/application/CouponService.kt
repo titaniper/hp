@@ -21,7 +21,7 @@ class CouponService(
     private val couponLockManager: CouponLockManager,
 ) {
 
-    fun issueCoupon(command: IssueCouponCommand): CouponIssueResult {
+    fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
 
@@ -64,20 +64,14 @@ class CouponService(
             )
             val savedCoupon = couponRepository.save(coupon)
 
-            CouponIssueResult(
-                userCouponId = savedCoupon.id,
-                couponTemplateId = savedCoupon.couponTemplateId,
-                type = savedCoupon.type,
-                value = savedCoupon.value,
-                status = savedCoupon.status,
-                issuedAt = savedCoupon.issuedAt,
-                expiredAt = savedCoupon.expiredAt,
+            IssueCouponOutput(
+                coupon = savedCoupon.toOutput(),
                 remainingQuantity = updatedTemplate.remainingQuantity(),
             )
         }
     }
 
-    fun getUserCoupons(userId: UUID): List<UserCouponResult> {
+    fun getUserCoupons(userId: UUID): List<Output> {
         val user = userRepository.findById(userId)
             ?: throw UserNotFoundException(userId.toString())
 
@@ -94,12 +88,12 @@ class CouponService(
                 }
                 current
             }
-            .map { it.toResult() }
+            .map { it.toOutput() }
     }
 
-    private fun Coupon.toResult(): UserCouponResult =
-        UserCouponResult(
-            couponId = id,
+    private fun Coupon.toOutput(): Output =
+        Output(
+            id = id,
             couponTemplateId = couponTemplateId,
             type = type,
             value = value,
@@ -115,19 +109,13 @@ class CouponService(
         val userId: UUID,
     )
 
-    data class CouponIssueResult(
-        val userCouponId: UUID,
-        val couponTemplateId: UUID?,
-        val type: CouponType,
-        val value: java.math.BigDecimal,
-        val status: CouponStatus,
-        val issuedAt: Instant,
-        val expiredAt: Instant?,
+    data class IssueCouponOutput(
+        val coupon: Output,
         val remainingQuantity: Int,
     )
 
-    data class UserCouponResult(
-        val couponId: UUID,
+    data class Output(
+        val id: UUID,
         val couponTemplateId: UUID?,
         val type: CouponType,
         val value: java.math.BigDecimal,

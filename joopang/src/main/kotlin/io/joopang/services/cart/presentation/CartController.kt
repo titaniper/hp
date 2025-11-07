@@ -90,7 +90,7 @@ class CartController(
             )
             .toResponse()
 
-    private fun CartService.CartView.toResponse(): CartResponse =
+    private fun CartService.Output.toResponse(): CartResponse =
         CartResponse(
             userId = userId,
             items = items.map { it.toResponseItem() },
@@ -102,7 +102,7 @@ class CartController(
             ),
         )
 
-    private fun CartService.CartItemView.toResponseItem(): CartItemResponse =
+    private fun CartService.ItemOutput.toResponseItem(): CartItemResponse =
         CartItemResponse(
             cartItemId = cartItemId,
             productId = productId,

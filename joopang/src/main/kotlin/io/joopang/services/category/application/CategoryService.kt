@@ -12,18 +12,19 @@ class CategoryService(
     private val categoryRepository: CategoryRepository,
 ) {
 
-    fun listCategories(parentId: UUID?): List<Category> =
+    fun listCategories(parentId: UUID?): List<Output> =
         if (parentId == null) {
             categoryRepository.findAll()
         } else {
             categoryRepository.findByParentId(parentId)
-        }
+        }.map { it.toOutput() }
 
-    fun getCategory(id: UUID): Category =
+    fun getCategory(id: UUID): Output =
         categoryRepository.findById(id)
+            ?.toOutput()
             ?: throw CategoryNotFoundException(id.toString())
 
-    fun createCategory(command: CreateCategoryCommand): Category {
+    fun createCategory(command: CreateCategoryCommand): Output {
         val parent = command.parentId?.let { parentId ->
             categoryRepository.findById(parentId)
                 ?: throw CategoryNotFoundException(parentId.toString())
@@ -37,13 +38,30 @@ class CategoryService(
             parentId = parent?.id,
         )
 
-        return categoryRepository.save(category)
+        return categoryRepository.save(category).toOutput()
     }
+
+    private fun Category.toOutput(): Output =
+        Output(
+            id = id,
+            level = level,
+            name = name,
+            status = status,
+            parentId = parentId,
+        )
 
     data class CreateCategoryCommand(
         val name: String,
         val status: String,
         val parentId: UUID?,
         val id: UUID? = null,
+    )
+
+    data class Output(
+        val id: UUID,
+        val level: Int,
+        val name: String,
+        val status: CategoryStatus,
+        val parentId: UUID?,
     )
 }

@@ -1,7 +1,6 @@
 package io.joopang.services.order.presentation
 
 import io.joopang.services.order.application.OrderService
-import io.joopang.services.order.domain.OrderAggregate
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -75,23 +74,23 @@ class OrderController(
             quantity = quantity,
         )
 
-    private fun OrderAggregate.toResponse(): OrderResponse =
+    private fun OrderService.Output.toResponse(): OrderResponse =
         OrderResponse(
-            orderId = order.id,
-            userId = order.userId,
-            status = order.status.name,
-            recipientName = order.recipientName,
-            orderedAt = ISO_INSTANT.format(order.orderedAt),
-            paidAt = order.paidAt?.let { ISO_INSTANT.format(it) },
-            orderMonth = order.orderMonth.format(),
-            totalAmount = order.totalAmount.toBigDecimal(),
-            discountAmount = order.discountAmount.toBigDecimal(),
-            payableAmount = order.payableAmount().toBigDecimal(),
-            imageUrl = order.imageUrl,
-            memo = order.memo,
+            orderId = orderId,
+            userId = userId,
+            status = status.name,
+            recipientName = recipientName,
+            orderedAt = ISO_INSTANT.format(orderedAt),
+            paidAt = paidAt?.let { ISO_INSTANT.format(it) },
+            orderMonth = orderMonth.format(),
+            totalAmount = totalAmount.toBigDecimal(),
+            discountAmount = discountAmount.toBigDecimal(),
+            payableAmount = payableAmount.toBigDecimal(),
+            imageUrl = imageUrl,
+            memo = memo,
             items = items.map { item ->
                 OrderItemResponse(
-                    orderItemId = item.id,
+                    orderItemId = item.orderItemId,
                     productId = item.productId,
                     productItemId = item.productItemId,
                     productName = item.productName,
@@ -102,16 +101,16 @@ class OrderController(
             },
             discounts = discounts.map { discount ->
                 OrderDiscountResponse(
-                    discountId = discount.id,
+                    discountId = discount.discountId,
                     type = discount.type.name,
                     referenceId = discount.referenceId,
-                    amount = discount.price.toBigDecimal(),
+                    amount = discount.amount.toBigDecimal(),
                     couponId = discount.couponId,
                 )
             },
         )
 
-    private fun OrderService.PaymentResult.toResponse(): PaymentResponse =
+    private fun OrderService.PaymentOutput.toResponse(): PaymentResponse =
         PaymentResponse(
             orderId = orderId,
             status = status.name,

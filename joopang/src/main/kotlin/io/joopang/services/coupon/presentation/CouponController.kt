@@ -41,21 +41,21 @@ class CouponController(
             .getUserCoupons(userId)
             .map { it.toResponse() }
 
-    private fun CouponService.CouponIssueResult.toResponse(): CouponIssueResponse =
+    private fun CouponService.IssueCouponOutput.toResponse(): CouponIssueResponse =
         CouponIssueResponse(
-            userCouponId = userCouponId,
-            couponTemplateId = couponTemplateId,
-            type = type,
-            value = value,
-            status = status,
-            issuedAt = issuedAt,
-            expiredAt = expiredAt,
+            userCouponId = coupon.id,
+            couponTemplateId = coupon.couponTemplateId,
+            type = coupon.type,
+            value = coupon.value,
+            status = coupon.status,
+            issuedAt = coupon.issuedAt,
+            expiredAt = coupon.expiredAt,
             remainingQuantity = remainingQuantity,
         )
 
-    private fun CouponService.UserCouponResult.toResponse(): UserCouponResponse =
+    private fun CouponService.Output.toResponse(): UserCouponResponse =
         UserCouponResponse(
-            couponId = couponId,
+            couponId = id,
             couponTemplateId = couponTemplateId,
             type = type,
             value = value,

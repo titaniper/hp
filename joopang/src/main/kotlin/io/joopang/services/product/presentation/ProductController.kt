@@ -4,7 +4,6 @@ import io.joopang.services.product.application.ProductService
 import io.joopang.services.product.domain.ProductItemStatus
 import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductStatus
-import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -49,7 +48,7 @@ class ProductController(
                     products = result.products.map { topProduct ->
                         TopProductResponse(
                             rank = topProduct.rank,
-                            product = topProduct.aggregate.toResponse(),
+                            product = topProduct.product.toResponse(),
                         )
                     },
                 )
@@ -170,21 +169,21 @@ class ProductController(
             code = code,
         )
 
-    private fun ProductWithItems.toResponse(): ProductResponse =
+    private fun ProductService.Output.toResponse(): ProductResponse =
         ProductResponse(
-            id = product.id,
-            name = product.name,
-            code = product.code.value,
-            description = product.description,
-            content = product.content,
-            status = product.status.name,
-            sellerId = product.sellerId,
-            categoryId = product.categoryId,
-            price = product.price.toBigDecimal(),
-            discountRate = product.discountRate?.value,
-            version = product.version,
-            viewCount = product.viewCount,
-            salesCount = product.salesCount,
+            id = id,
+            name = name,
+            code = code,
+            description = description,
+            content = content,
+            status = status.name,
+            sellerId = sellerId,
+            categoryId = categoryId,
+            price = price.toBigDecimal(),
+            discountRate = discountRate,
+            version = version,
+            viewCount = viewCount,
+            salesCount = salesCount,
             items = items.map { item ->
                 ProductItemResponse(
                     id = item.id,
@@ -193,7 +192,7 @@ class ProductController(
                     description = item.description,
                     stock = item.stock.toBigDecimal(),
                     status = item.status.name,
-                    code = item.code.value,
+                    code = item.code,
                 )
             },
             totalStock = items
