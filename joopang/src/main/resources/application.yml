@@ -1,2 +1,31 @@
 spring:
-  application.name: joopang
+  application:
+    name: joopang
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3311/joopang?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:joopang}
+    password: ${DB_PASSWORD:joopang}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        # SQL에 주석을 추가하여 어떤 작업인지 더 명확하게 표시
+        use_sql_comments: true
+        jdbc.time_zone: UTC
+        type.preferred_uuid_jdbc_type: CHAR
+    defer-datasource-initialization: true
+  sql:
+    init:
+      encoding: UTF-8
+      mode: always
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    # 바인딩되는 파라미터 값까지 확인
+    org.hibernate.type.descriptor.sql.BasicBinder: trace

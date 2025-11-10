@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     alias(libs.plugins.kotlin.jvm)                     
     alias(libs.plugins.kotlin.spring)                  
+    alias(libs.plugins.kotlin.jpa)
     alias(libs.plugins.spring.boot)                    
     alias(libs.plugins.spring.dependency.management)   
     id("jacoco")                                       
@@ -22,12 +23,15 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")        
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")    
 
-    implementation(libs.spring.boot.starter.web)                 
+    implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.data.jpa)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
     implementation("org.springframework.boot:spring-boot-starter-validation")  
     implementation(libs.springdoc.openapi.starter.webmvc.ui)
 
     annotationProcessor(libs.spring.boot.configuration.processor) 
+
+    runtimeOnly(libs.mysql.connector)
 
     testImplementation(libs.spring.boot.starter.test)
 
