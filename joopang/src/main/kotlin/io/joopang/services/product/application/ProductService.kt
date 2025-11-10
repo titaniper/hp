@@ -3,6 +3,7 @@ package io.joopang.services.product.application
 import io.joopang.services.common.application.CacheService
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Percentage
+import io.joopang.services.common.monitoring.TrackPerformance
 import io.joopang.services.product.domain.Product
 import io.joopang.services.product.domain.ProductCode
 import io.joopang.services.product.domain.ProductItem
@@ -133,6 +134,7 @@ class ProductService(
         return updatedAggregate.toOutput()
     }
 
+    @TrackPerformance("getTopProducts")
     fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
