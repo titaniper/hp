@@ -9,11 +9,13 @@ import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.infrastructure.UserRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Service
+@Transactional(readOnly = true)
 class CouponService(
     private val couponRepository: CouponRepository,
     private val couponTemplateRepository: CouponTemplateRepository,
@@ -21,6 +23,7 @@ class CouponService(
     private val couponLockManager: CouponLockManager,
 ) {
 
+    @Transactional
     fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
@@ -71,6 +74,7 @@ class CouponService(
         }
     }
 
+    @Transactional
     fun getUserCoupons(userId: UUID): List<Output> {
         val user = userRepository.findById(userId)
             ?: throw UserNotFoundException(userId.toString())

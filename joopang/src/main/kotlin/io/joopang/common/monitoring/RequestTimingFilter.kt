@@ -26,7 +26,8 @@ class RequestTimingFilter : OncePerRequestFilter() {
             filterChain.doFilter(request, response)
         } finally {
             val duration = System.currentTimeMillis() - start
-            logger.debug("HTTP {} {} completed in {} ms", request.method, request.requestURI, duration)
+            // Avoid vararg formatting so this works with both SLF4J and the Commons Logging bridge
+            logger.debug("HTTP ${request.method} ${request.requestURI} completed in ${duration} ms")
         }
     }
 }

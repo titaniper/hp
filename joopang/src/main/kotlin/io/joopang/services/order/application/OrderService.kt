@@ -26,6 +26,7 @@ import io.joopang.services.order.infrastructure.OrderRepository
 import io.joopang.services.product.infrastructure.ProductRepository
 import io.joopang.services.user.infrastructure.UserRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
@@ -33,6 +34,7 @@ import java.time.ZonedDateTime
 import java.util.UUID
 
 @Service
+@Transactional(readOnly = true)
 class OrderService(
     private val orderRepository: OrderRepository,
     private val productRepository: ProductRepository,
@@ -42,6 +44,7 @@ class OrderService(
     private val productLockManager: ProductLockManager,
 ) {
 
+    @Transactional
     fun createOrder(command: CreateOrderCommand): Output {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
@@ -123,6 +126,7 @@ class OrderService(
         orderRepository.findAll()
             .map { it.toOutput() }
 
+    @Transactional
     fun processPayment(command: ProcessPaymentCommand): PaymentOutput {
         val aggregate = orderRepository.findById(command.orderId)
             ?: throw OrderNotFoundException(command.orderId.toString())

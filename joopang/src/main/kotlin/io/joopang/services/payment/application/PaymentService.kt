@@ -7,10 +7,12 @@ import io.joopang.services.payment.domain.PaymentNotFoundException
 import io.joopang.services.payment.domain.PaymentStatus
 import io.joopang.services.payment.infrastructure.PaymentRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
 @Service
+@Transactional(readOnly = true)
 class PaymentService(
     private val paymentRepository: PaymentRepository,
 ) {
@@ -27,6 +29,7 @@ class PaymentService(
             ?.toOutput()
             ?: throw PaymentNotFoundException(id.toString())
 
+    @Transactional
     fun registerPayment(command: RegisterPaymentCommand): Output {
         val payment = Payment(
             id = command.id ?: UUID.randomUUID(),
