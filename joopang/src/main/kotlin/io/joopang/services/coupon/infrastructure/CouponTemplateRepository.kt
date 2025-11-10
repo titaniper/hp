@@ -1,63 +1,23 @@
 package io.joopang.services.coupon.infrastructure
 
-import io.joopang.services.common.domain.Money
 import io.joopang.services.coupon.domain.CouponTemplate
-import io.joopang.services.coupon.domain.CouponTemplateStatus
-import io.joopang.services.coupon.domain.CouponType
+import io.joopang.services.coupon.infrastructure.jpa.CouponTemplateEntity
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import java.math.BigDecimal
-import java.time.Instant
-import java.time.temporal.ChronoUnit
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-open class CouponTemplateRepository {
+@Transactional(readOnly = true)
+open class CouponTemplateRepository(
+    @PersistenceContext private val entityManager: EntityManager,
+) {
 
-    private val store = ConcurrentHashMap<UUID, CouponTemplate>()
+    open fun findById(templateId: UUID): CouponTemplate? =
+        entityManager.find(CouponTemplateEntity::class.java, templateId)?.toDomain()
 
-    init {
-        seed()
-    }
-
-    open fun findById(templateId: UUID): CouponTemplate? = store[templateId]
-
-    open fun save(template: CouponTemplate): CouponTemplate {
-        store[template.id] = template
-        return template
-    }
-
-    private fun seed() {
-        val percentageTemplateId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        store[percentageTemplateId] = CouponTemplate(
-            id = percentageTemplateId,
-            title = "신규 가입 10% 할인",
-            type = CouponType.PERCENTAGE,
-            value = BigDecimal("0.10"),
-            status = CouponTemplateStatus.ACTIVE,
-            minAmount = Money.of(50_000L),
-            maxDiscountAmount = Money.of(30_000L),
-            totalQuantity = 1_000,
-            issuedQuantity = 150,
-            limitQuantity = 1,
-            startAt = Instant.now().minus(10, ChronoUnit.DAYS),
-            endAt = Instant.now().plus(20, ChronoUnit.DAYS),
-        )
-
-        val amountTemplateId = UUID.fromString("bbbbbbbb-cccc-dddd-eeee-ffffffffffff")
-        store[amountTemplateId] = CouponTemplate(
-            id = amountTemplateId,
-            title = "5,000원 즉시 할인",
-            type = CouponType.AMOUNT,
-            value = BigDecimal("5000"),
-            status = CouponTemplateStatus.ACTIVE,
-            minAmount = Money.of(20_000L),
-            maxDiscountAmount = null,
-            totalQuantity = 5_000,
-            issuedQuantity = 2_345,
-            limitQuantity = 2,
-            startAt = Instant.now().minus(5, ChronoUnit.DAYS),
-            endAt = Instant.now().plus(30, ChronoUnit.DAYS),
-        )
-    }
+    @Transactional
+    open fun save(template: CouponTemplate): CouponTemplate =
+        entityManager.merge(CouponTemplateEntity.from(template)).toDomain()
 }

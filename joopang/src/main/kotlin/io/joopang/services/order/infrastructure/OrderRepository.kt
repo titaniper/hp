@@ -1,33 +1,41 @@
 package io.joopang.services.order.infrastructure
 
 import io.joopang.services.order.domain.OrderAggregate
+import io.joopang.services.order.infrastructure.jpa.OrderEntity
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-open class OrderRepository {
-
-    private val store = ConcurrentHashMap<UUID, OrderAggregate>()
+@Transactional(readOnly = true)
+open class OrderRepository(
+    @PersistenceContext private val entityManager: EntityManager,
+) {
 
     open fun nextIdentity(): UUID = UUID.randomUUID()
 
+    @Transactional
     open fun save(aggregate: OrderAggregate): OrderAggregate {
-        val previous = store.putIfAbsent(aggregate.order.id, aggregate)
-        require(previous == null) { "Order with id ${aggregate.order.id} already exists" }
-        return aggregate
+        val existing = entityManager.find(OrderEntity::class.java, aggregate.order.id)
+        require(existing == null) { "Order with id ${aggregate.order.id} already exists" }
+        return entityManager.merge(OrderEntity.fromAggregate(aggregate)).toAggregate()
     }
 
-    open fun findById(orderId: UUID): OrderAggregate? = store[orderId]
+    open fun findById(orderId: UUID): OrderAggregate? =
+        entityManager.find(OrderEntity::class.java, orderId)?.toAggregate()
 
     open fun findAll(): List<OrderAggregate> =
-        store.values.sortedBy { it.order.orderedAt }
+        entityManager.createQuery("select o from OrderEntity o order by o.orderedAt", OrderEntity::class.java)
+            .resultList
+            .map(OrderEntity::toAggregate)
 
+    @Transactional
     open fun update(aggregate: OrderAggregate): OrderAggregate {
-        require(store.containsKey(aggregate.order.id)) {
-            "Order with id ${aggregate.order.id} does not exist"
-        }
-        store[aggregate.order.id] = aggregate
-        return aggregate
+        val existing = entityManager.find(OrderEntity::class.java, aggregate.order.id)
+            ?: throw IllegalArgumentException("Order with id ${aggregate.order.id} does not exist")
+        existing.updateFrom(aggregate)
+        return existing.toAggregate()
     }
 }

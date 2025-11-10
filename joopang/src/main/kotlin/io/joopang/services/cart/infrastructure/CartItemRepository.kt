@@ -1,46 +1,56 @@
 package io.joopang.services.cart.infrastructure
 
 import io.joopang.services.cart.domain.CartItem
+import io.joopang.services.cart.infrastructure.jpa.CartItemEntity
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArraySet
 
 @Repository
-open class CartItemRepository {
-
-    private val itemsById = ConcurrentHashMap<UUID, CartItem>()
-    private val idsByUser = ConcurrentHashMap<UUID, MutableSet<UUID>>()
+@Transactional(readOnly = true)
+open class CartItemRepository(
+    @PersistenceContext private val entityManager: EntityManager,
+) {
 
     open fun findByUserId(userId: UUID): List<CartItem> =
-        idsByUser[userId]
-            ?.mapNotNull { itemsById[it] }
-            ?: emptyList()
+        entityManager.createQuery(
+            "select c from CartItemEntity c where c.userId = :userId",
+            CartItemEntity::class.java,
+        )
+            .setParameter("userId", userId)
+            .resultList
+            .map(CartItemEntity::toDomain)
 
-    open fun findById(cartItemId: UUID): CartItem? = itemsById[cartItemId]
+    open fun findById(cartItemId: UUID): CartItem? =
+        entityManager.find(CartItemEntity::class.java, cartItemId)?.toDomain()
 
     open fun findByUserIdAndProductItemId(userId: UUID, productItemId: UUID): CartItem? =
-        findByUserId(userId).firstOrNull { it.productItemId == productItemId }
+        entityManager.createQuery(
+            "select c from CartItemEntity c where c.userId = :userId and c.productItemId = :productItemId",
+            CartItemEntity::class.java,
+        )
+            .setParameter("userId", userId)
+            .setParameter("productItemId", productItemId)
+            .resultList
+            .firstOrNull()
+            ?.toDomain()
 
-    open fun save(cartItem: CartItem): CartItem {
-        itemsById[cartItem.id] = cartItem
-        idsByUser.computeIfAbsent(cartItem.userId) { CopyOnWriteArraySet() }
-            .add(cartItem.id)
-        return cartItem
-    }
+    @Transactional
+    open fun save(cartItem: CartItem): CartItem =
+        entityManager.merge(CartItemEntity.from(cartItem)).toDomain()
 
+    @Transactional
     open fun delete(cartItemId: UUID) {
-        val removed = itemsById.remove(cartItemId) ?: return
-        idsByUser[removed.userId]?.let { ids ->
-            ids.remove(cartItemId)
-            if (ids.isEmpty()) {
-                idsByUser.remove(removed.userId)
-            }
-        }
+        val entity = entityManager.find(CartItemEntity::class.java, cartItemId) ?: return
+        entityManager.remove(entity)
     }
 
+    @Transactional
     open fun deleteByUserId(userId: UUID) {
-        val ids = idsByUser.remove(userId) ?: return
-        ids.forEach { itemsById.remove(it) }
+        entityManager.createQuery("delete from CartItemEntity c where c.userId = :userId")
+            .setParameter("userId", userId)
+            .executeUpdate()
     }
 }

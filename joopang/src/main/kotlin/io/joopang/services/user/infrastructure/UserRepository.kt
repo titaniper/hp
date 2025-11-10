@@ -1,50 +1,28 @@
 package io.joopang.services.user.infrastructure
 
-import io.joopang.services.common.domain.Email
-import io.joopang.services.common.domain.Money
-import io.joopang.services.common.domain.PasswordHash
 import io.joopang.services.user.domain.User
+import io.joopang.services.user.infrastructure.jpa.UserEntity
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-open class UserRepository {
+@Transactional(readOnly = true)
+open class UserRepository(
+    @PersistenceContext private val entityManager: EntityManager,
+) {
 
-    private val store = ConcurrentHashMap<UUID, User>()
+    open fun findById(userId: UUID): User? =
+        entityManager.find(UserEntity::class.java, userId)?.toDomain()
 
-    init {
-        seed()
-    }
+    open fun findAll(): List<User> =
+        entityManager.createQuery("select u from UserEntity u", UserEntity::class.java)
+            .resultList
+            .map(UserEntity::toDomain)
 
-    open fun findById(userId: UUID): User? = store[userId]
-
-    open fun save(user: User): User {
-        store[user.id] = user
-        return user
-    }
-
-    open fun findAll(): List<User> = store.values.toList()
-
-    private fun seed() {
-        val customerId = UUID.fromString("aaaaaaaa-1111-2222-3333-444444444444")
-        store[customerId] = User(
-            id = customerId,
-            email = Email("customer@joopang.com"),
-            password = PasswordHash("hashedpassword"),
-            firstName = "Joo",
-            lastName = "Pang",
-            balance = Money.of(500_000L),
-        )
-
-        val vipId = UUID.fromString("bbbbbbbb-1111-2222-3333-444444444444")
-        store[vipId] = User(
-            id = vipId,
-            email = Email("vip@joopang.com"),
-            password = PasswordHash("viphashed"),
-            firstName = "Vip",
-            lastName = "Customer",
-            balance = Money.of(1_000_000L),
-        )
-    }
+    @Transactional
+    open fun save(user: User): User =
+        entityManager.merge(UserEntity.from(user)).toDomain()
 }
