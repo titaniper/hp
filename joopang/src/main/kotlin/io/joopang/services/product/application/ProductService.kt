@@ -16,7 +16,9 @@ import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Service
@@ -135,19 +137,19 @@ class ProductService(
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
 
-        val startDate = LocalDate.now().minusDays(days)
-        val ranked = productRepository.findAll()
-            .map { aggregate ->
-                aggregate to totalSalesSince(aggregate.product.id, startDate)
-            }
-            .sortedByDescending { (_, sales) -> sales }
-            .take(limit)
-            .mapIndexed { index, (aggregate, _) ->
-                TopProductOutput(
-                    rank = index + 1,
-                    product = aggregate.toOutput(),
-                )
-            }
+        val cutoff = Instant.now().minus(days, ChronoUnit.DAYS)
+        val rows = productRepository.findPopularProductsSince(cutoff, limit)
+
+        val ranked = rows.mapIndexed { index, row ->
+            val aggregate = productRepository.findById(row.productId)
+                ?: throw ProductNotFoundException(row.productId.toString())
+            TopProductOutput(
+                rank = index + 1,
+                product = aggregate.toOutput(),
+                salesCount = row.salesCount,
+                revenue = row.revenue,
+            )
+        }
 
         return TopProductsOutput(
             period = "${days}days",
@@ -314,6 +316,8 @@ class ProductService(
     data class TopProductOutput(
         val rank: Int,
         val product: Output,
+        val salesCount: Long,
+        val revenue: Money,
     )
 
     data class StockCheckOutput(
