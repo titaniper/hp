@@ -1,4 +1,4 @@
-package io.joopang.api.config
+package io.joopang.config
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType
