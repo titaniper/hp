@@ -1,7 +1,6 @@
 package io.joopang.services.seller.infrastructure
 
 import io.joopang.services.seller.domain.Seller
-import io.joopang.services.seller.infrastructure.jpa.SellerEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,14 +14,13 @@ open class SellerRepository(
 ) {
 
     open fun findAll(): List<Seller> =
-        entityManager.createQuery("select s from SellerEntity s", SellerEntity::class.java)
+        entityManager.createQuery("select s from Seller s", Seller::class.java)
             .resultList
-            .map(SellerEntity::toDomain)
 
     open fun findById(id: UUID): Seller? =
-        entityManager.find(SellerEntity::class.java, id)?.toDomain()
+        entityManager.find(Seller::class.java, id)
 
     @Transactional
     open fun save(seller: Seller): Seller =
-        entityManager.merge(SellerEntity.from(seller)).toDomain()
+        entityManager.merge(seller)
 }

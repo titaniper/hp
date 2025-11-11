@@ -1,7 +1,6 @@
 package io.joopang.services.category.infrastructure
 
 import io.joopang.services.category.domain.Category
-import io.joopang.services.category.infrastructure.jpa.CategoryEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,30 +14,29 @@ open class CategoryRepository(
 ) {
 
     open fun findAll(): List<Category> =
-        entityManager.createQuery("select c from CategoryEntity c", CategoryEntity::class.java)
+        entityManager.createQuery("select c from Category c", Category::class.java)
             .resultList
-            .map(CategoryEntity::toDomain)
 
     open fun findById(id: UUID): Category? =
-        entityManager.find(CategoryEntity::class.java, id)?.toDomain()
+        entityManager.find(Category::class.java, id)
 
     open fun findByParentId(parentId: UUID?): List<Category> =
         if (parentId == null) {
             entityManager.createQuery(
-                "select c from CategoryEntity c where c.parentId is null",
-                CategoryEntity::class.java,
+                "select c from Category c where c.parentId is null",
+                Category::class.java,
             )
                 .resultList
         } else {
             entityManager.createQuery(
-                "select c from CategoryEntity c where c.parentId = :parentId",
-                CategoryEntity::class.java,
+                "select c from Category c where c.parentId = :parentId",
+                Category::class.java,
             )
                 .setParameter("parentId", parentId)
                 .resultList
-        }.map(CategoryEntity::toDomain)
+        }
 
     @Transactional
     open fun save(category: Category): Category =
-        entityManager.merge(CategoryEntity.from(category)).toDomain()
+        entityManager.merge(category)
 }

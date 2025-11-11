@@ -1,7 +1,6 @@
 package io.joopang.services.payment.infrastructure
 
 import io.joopang.services.payment.domain.Payment
-import io.joopang.services.payment.infrastructure.jpa.PaymentEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,23 +14,21 @@ open class PaymentRepository(
 ) {
 
     open fun findAll(): List<Payment> =
-        entityManager.createQuery("select p from PaymentEntity p", PaymentEntity::class.java)
+        entityManager.createQuery("select p from Payment p", Payment::class.java)
             .resultList
-            .map(PaymentEntity::toDomain)
 
     open fun findById(id: UUID): Payment? =
-        entityManager.find(PaymentEntity::class.java, id)?.toDomain()
+        entityManager.find(Payment::class.java, id)
 
     open fun findByOrderId(orderId: UUID): List<Payment> =
         entityManager.createQuery(
-            "select p from PaymentEntity p where p.orderId = :orderId",
-            PaymentEntity::class.java,
+            "select p from Payment p where p.orderId = :orderId",
+            Payment::class.java,
         )
             .setParameter("orderId", orderId)
             .resultList
-            .map(PaymentEntity::toDomain)
 
     @Transactional
     open fun save(payment: Payment): Payment =
-        entityManager.merge(PaymentEntity.from(payment)).toDomain()
+        entityManager.merge(payment)
 }

@@ -2,19 +2,45 @@ package io.joopang.services.order.domain
 
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Quantity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Id
+import jakarta.persistence.Table
 import java.util.UUID
 
+@Entity
+@Table(name = "order_items")
 data class OrderItem(
-    val id: UUID,
-    val orderId: UUID,
-    val productId: UUID?,
-    val productItemId: UUID?,
-    val productName: String,
-    val quantity: Quantity,
-    val unitPrice: Money,
-    val subtotal: Money,
-    val refundedAmount: Money = Money.ZERO,
-    val refundedQuantity: Quantity = Quantity(0),
+    @Id
+    @Column(columnDefinition = "BINARY(16)")
+    var id: UUID = UUID(0L, 0L),
+
+    @Column(name = "order_id", columnDefinition = "BINARY(16)", nullable = false)
+    var orderId: UUID = UUID(0L, 0L),
+
+    @Column(name = "product_id", columnDefinition = "BINARY(16)")
+    var productId: UUID? = null,
+
+    @Column(name = "product_item_id", columnDefinition = "BINARY(16)")
+    var productItemId: UUID? = null,
+
+    @Column(name = "product_name", nullable = false)
+    var productName: String = "",
+
+    @Column(nullable = false)
+    var quantity: Quantity = Quantity(0),
+
+    @Column(name = "unit_price", precision = 19, scale = 2, nullable = false)
+    var unitPrice: Money = Money.ZERO,
+
+    @Column(name = "subtotal", precision = 19, scale = 2, nullable = false)
+    var subtotal: Money = Money.ZERO,
+
+    @Column(name = "refunded_amount", precision = 19, scale = 2, nullable = false)
+    var refundedAmount: Money = Money.ZERO,
+
+    @Column(name = "refunded_quantity", nullable = false)
+    var refundedQuantity: Quantity = Quantity(0),
 ) {
 
     init {

@@ -1,7 +1,6 @@
 package io.joopang.services.coupon.infrastructure
 
 import io.joopang.services.coupon.domain.Coupon
-import io.joopang.services.coupon.infrastructure.jpa.CouponEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,40 +14,37 @@ open class CouponRepository(
 ) {
 
     open fun findById(couponId: UUID): Coupon? =
-        entityManager.find(CouponEntity::class.java, couponId)?.toDomain()
+        entityManager.find(Coupon::class.java, couponId)
 
     open fun findUserCoupons(userId: UUID): List<Coupon> =
         entityManager.createQuery(
-            "select c from CouponEntity c where c.userId = :userId",
-            CouponEntity::class.java,
+            "select c from Coupon c where c.userId = :userId",
+            Coupon::class.java,
         )
             .setParameter("userId", userId)
             .resultList
-            .map(CouponEntity::toDomain)
 
     open fun findUserCoupon(userId: UUID, couponId: UUID): Coupon? =
         entityManager.createQuery(
-            "select c from CouponEntity c where c.id = :couponId and c.userId = :userId",
-            CouponEntity::class.java,
+            "select c from Coupon c where c.id = :couponId and c.userId = :userId",
+            Coupon::class.java,
         )
             .setParameter("couponId", couponId)
             .setParameter("userId", userId)
             .resultList
             .firstOrNull()
-            ?.toDomain()
 
     open fun findUserCouponByTemplate(userId: UUID, couponTemplateId: UUID): Coupon? =
         entityManager.createQuery(
-            "select c from CouponEntity c where c.userId = :userId and c.couponTemplateId = :templateId",
-            CouponEntity::class.java,
+            "select c from Coupon c where c.userId = :userId and c.couponTemplateId = :templateId",
+            Coupon::class.java,
         )
             .setParameter("userId", userId)
             .setParameter("templateId", couponTemplateId)
             .resultList
             .firstOrNull()
-            ?.toDomain()
 
     @Transactional
     open fun save(coupon: Coupon): Coupon =
-        entityManager.merge(CouponEntity.from(coupon)).toDomain()
+        entityManager.merge(coupon)
 }

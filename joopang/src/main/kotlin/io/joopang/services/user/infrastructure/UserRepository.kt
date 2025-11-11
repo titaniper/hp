@@ -1,7 +1,6 @@
 package io.joopang.services.user.infrastructure
 
 import io.joopang.services.user.domain.User
-import io.joopang.services.user.infrastructure.jpa.UserEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,14 +14,13 @@ open class UserRepository(
 ) {
 
     open fun findById(userId: UUID): User? =
-        entityManager.find(UserEntity::class.java, userId)?.toDomain()
+        entityManager.find(User::class.java, userId)
 
     open fun findAll(): List<User> =
-        entityManager.createQuery("select u from UserEntity u", UserEntity::class.java)
+        entityManager.createQuery("select u from User u", User::class.java)
             .resultList
-            .map(UserEntity::toDomain)
 
     @Transactional
     open fun save(user: User): User =
-        entityManager.merge(UserEntity.from(user)).toDomain()
+        entityManager.merge(user)
 }

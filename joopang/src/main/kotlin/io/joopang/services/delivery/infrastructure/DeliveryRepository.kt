@@ -1,7 +1,6 @@
 package io.joopang.services.delivery.infrastructure
 
 import io.joopang.services.delivery.domain.Delivery
-import io.joopang.services.delivery.infrastructure.jpa.DeliveryEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,23 +14,21 @@ open class DeliveryRepository(
 ) {
 
     open fun findAll(): List<Delivery> =
-        entityManager.createQuery("select d from DeliveryEntity d", DeliveryEntity::class.java)
+        entityManager.createQuery("select d from Delivery d", Delivery::class.java)
             .resultList
-            .map(DeliveryEntity::toDomain)
 
     open fun findById(id: UUID): Delivery? =
-        entityManager.find(DeliveryEntity::class.java, id)?.toDomain()
+        entityManager.find(Delivery::class.java, id)
 
     open fun findByOrderItemId(orderItemId: UUID): List<Delivery> =
         entityManager.createQuery(
-            "select d from DeliveryEntity d where d.orderItemId = :orderItemId",
-            DeliveryEntity::class.java,
+            "select d from Delivery d where d.orderItemId = :orderItemId",
+            Delivery::class.java,
         )
             .setParameter("orderItemId", orderItemId)
             .resultList
-            .map(DeliveryEntity::toDomain)
 
     @Transactional
     open fun save(delivery: Delivery): Delivery =
-        entityManager.merge(DeliveryEntity.from(delivery)).toDomain()
+        entityManager.merge(delivery)
 }

@@ -1,9 +1,10 @@
 package io.joopang.services.product.infrastructure
 
 import io.joopang.services.common.domain.Money
+import io.joopang.services.product.domain.DailySale
+import io.joopang.services.product.domain.Product
+import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductWithItems
-import io.joopang.services.product.infrastructure.jpa.ProductDailySaleEntity
-import io.joopang.services.product.infrastructure.jpa.ProductEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -23,24 +24,25 @@ open class ProductRepository(
 ) {
 
     open fun findAll(): List<ProductWithItems> =
-        entityManager.createQuery("select p from ProductEntity p", ProductEntity::class.java)
+        entityManager.createQuery("select p from Product p", Product::class.java)
             .resultList
-            .map(ProductEntity::toAggregate)
+            .map { product -> ProductWithItems(product, findItems(product.id)) }
 
-    open fun findById(productId: UUID): ProductWithItems? =
-        entityManager.find(ProductEntity::class.java, productId)?.toAggregate()
+    open fun findById(productId: UUID): ProductWithItems? {
+        val product = entityManager.find(Product::class.java, productId) ?: return null
+        return ProductWithItems(product, findItems(productId))
+    }
 
     open fun findProductCreatedAt(productId: UUID): LocalDate? =
-        entityManager.find(ProductEntity::class.java, productId)?.createdAt
+        entityManager.find(Product::class.java, productId)?.createdAt
 
     open fun findDailySales(productId: UUID): List<DailySale> =
         entityManager.createQuery(
-            "select s from ProductDailySaleEntity s where s.productId = :productId order by s.saleDate",
-            ProductDailySaleEntity::class.java,
+            "select s from DailySale s where s.productId = :productId order by s.date",
+            DailySale::class.java,
         )
             .setParameter("productId", productId)
             .resultList
-            .map(ProductDailySaleEntity::toDomain)
 
     open fun findPopularProductsSince(
         since: Instant,
@@ -77,15 +79,24 @@ open class ProductRepository(
     }
 
     @Transactional
-    open fun save(aggregate: ProductWithItems): ProductWithItems =
-        entityManager.merge(ProductEntity.fromAggregate(aggregate)).toAggregate()
+    open fun save(aggregate: ProductWithItems): ProductWithItems {
+        entityManager.persist(aggregate.product)
+        aggregate.items.forEach(entityManager::persist)
+        entityManager.flush()
+        return ProductWithItems(aggregate.product, findItems(aggregate.product.id))
+    }
 
     @Transactional
     open fun update(aggregate: ProductWithItems): ProductWithItems {
-        val existing = entityManager.find(ProductEntity::class.java, aggregate.product.id)
+        val existing = entityManager.find(Product::class.java, aggregate.product.id)
             ?: throw IllegalArgumentException("Product with id ${aggregate.product.id} not found")
-        existing.updateFrom(aggregate)
-        return existing.toAggregate()
+
+        entityManager.merge(aggregate.product)
+        deleteItemsByProductId(existing.id)
+        aggregate.items.forEach(entityManager::persist)
+        entityManager.flush()
+
+        return ProductWithItems(aggregate.product, findItems(existing.id))
     }
 
     data class PopularProductRow(
@@ -94,6 +105,20 @@ open class ProductRepository(
         val salesCount: Long,
         val revenue: Money,
     )
+
+    private fun findItems(productId: UUID): List<ProductItem> =
+        entityManager.createQuery(
+            "select i from ProductItem i where i.productId = :productId",
+            ProductItem::class.java,
+        )
+            .setParameter("productId", productId)
+            .resultList
+
+    private fun deleteItemsByProductId(productId: UUID) {
+        entityManager.createQuery("delete from ProductItem i where i.productId = :productId")
+            .setParameter("productId", productId)
+            .executeUpdate()
+    }
 
     private fun Any.toLongValue(): Long = when (this) {
         is Long -> this

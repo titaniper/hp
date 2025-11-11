@@ -1,7 +1,6 @@
 package io.joopang.services.coupon.infrastructure
 
 import io.joopang.services.coupon.domain.CouponTemplate
-import io.joopang.services.coupon.infrastructure.jpa.CouponTemplateEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -15,9 +14,9 @@ open class CouponTemplateRepository(
 ) {
 
     open fun findById(templateId: UUID): CouponTemplate? =
-        entityManager.find(CouponTemplateEntity::class.java, templateId)?.toDomain()
+        entityManager.find(CouponTemplate::class.java, templateId)
 
     @Transactional
     open fun save(template: CouponTemplate): CouponTemplate =
-        entityManager.merge(CouponTemplateEntity.from(template)).toDomain()
+        entityManager.merge(template)
 }
