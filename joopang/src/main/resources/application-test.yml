@@ -27,6 +27,15 @@ spring:
       data-locations:
         - classpath:data.sql
 
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: true
+      multiline: true
+      logging: slf4j
+      log-format: |-
+        %(executionTime) ms | %(category) | %(sqlSingleLine)
+
 logging:
   level:
-    org.hibernate.SQL: warn
+    org.hibernate.SQL: off
