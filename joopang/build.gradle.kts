@@ -32,6 +32,7 @@ dependencies {
     annotationProcessor(libs.spring.boot.configuration.processor) 
 
     runtimeOnly(libs.mysql.connector)
+    testRuntimeOnly("com.h2database:h2")
 
     testImplementation(libs.spring.boot.starter.test)
 
@@ -65,8 +66,11 @@ tasks.getByName("jar") {
 }
 
 tasks.test {
-    ignoreFailures = true    
-    useJUnitPlatform()       
+    ignoreFailures = true
+    useJUnitPlatform()
+    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
+        systemProperty("spring.profiles.active", "test")
+    }
 }
 
 tasks.jacocoTestReport {
