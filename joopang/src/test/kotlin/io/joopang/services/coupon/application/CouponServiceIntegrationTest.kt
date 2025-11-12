@@ -7,6 +7,7 @@ import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.infrastructure.UserRepository
+import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -27,7 +28,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
     private val couponRepository: CouponRepository,
     private val couponTemplateRepository: CouponTemplateRepository,
     private val userRepository: UserRepository,
-) {
+) : IntegrationTestSupport() {
 
     private lateinit var templateId: UUID
 

@@ -1,6 +1,7 @@
 package io.joopang.services.order.application
 
 import io.joopang.services.common.domain.Money
+import io.joopang.support.IntegrationTestSupport
 import io.joopang.services.order.infrastructure.OrderRepository
 import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductWithItems
@@ -24,7 +25,7 @@ class OrderServiceIntegrationTest @Autowired constructor(
     private val productRepository: ProductRepository,
     private val userRepository: UserRepository,
     private val orderRepository: OrderRepository,
-) {
+) : IntegrationTestSupport() {
 
     private val userId = UUID.fromString("aaaaaaaa-1111-2222-3333-444444444444")
     private val productId = UUID.fromString("11111111-1111-1111-1111-111111111111")

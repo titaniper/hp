@@ -2,7 +2,9 @@ package io.joopang.services.order.domain
 
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
+import io.joopang.services.common.infrastructure.jpa.OrderMonthAttributeConverter
 import jakarta.persistence.Column
+import jakarta.persistence.Convert
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -31,6 +33,7 @@ data class Order(
     @Column(name = "recipient_name", nullable = false)
     var recipientName: String = "",
 
+    @Convert(converter = OrderMonthAttributeConverter::class)
     @Column(name = "order_month", nullable = false, length = 7)
     var orderMonth: OrderMonth = OrderMonth.from(1970, 1),
 

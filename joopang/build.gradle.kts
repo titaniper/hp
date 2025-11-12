@@ -28,13 +28,16 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
     implementation("org.springframework.boot:spring-boot-starter-validation")  
     implementation(libs.springdoc.openapi.starter.webmvc.ui)
+    implementation(libs.p6spy.spring.boot.starter)
 
     annotationProcessor(libs.spring.boot.configuration.processor) 
 
     runtimeOnly(libs.mysql.connector)
-    testRuntimeOnly("com.h2database:h2")
 
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.test.containers.junit.jupiter)
+    testImplementation(libs.test.containers.mysql)
 
     testImplementation("io.kotest:kotest-runner-junit5:5.8.0")  
     testImplementation("io.kotest:kotest-assertions-core:5.8.0") 
