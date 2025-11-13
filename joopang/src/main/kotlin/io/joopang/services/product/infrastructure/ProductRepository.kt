@@ -4,6 +4,7 @@ import io.joopang.services.common.domain.Money
 import io.joopang.services.product.domain.DailySale
 import io.joopang.services.product.domain.Product
 import io.joopang.services.product.domain.ProductItem
+import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductWithItems
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
@@ -31,6 +32,57 @@ open class ProductRepository(
     open fun findById(productId: UUID): ProductWithItems? {
         val product = entityManager.find(Product::class.java, productId) ?: return null
         return ProductWithItems(product, findItems(productId))
+    }
+
+    open fun findProducts(categoryId: UUID?, sort: ProductSort): List<ProductWithItems> {
+        val jpql = buildString {
+            append("select p from Product p")
+            if (categoryId != null) {
+                append(" where p.categoryId = :categoryId")
+            }
+            append(" order by ")
+            append(
+                when (sort) {
+                    ProductSort.NEWEST -> "p.createdAt desc"
+                    ProductSort.SALES -> "p.salesCount desc"
+                    ProductSort.PRICE_ASC -> "p.price asc"
+                    ProductSort.PRICE_DESC -> "p.price desc"
+                },
+            )
+        }
+
+        val query = entityManager.createQuery(jpql, Product::class.java)
+        if (categoryId != null) {
+            query.setParameter("categoryId", categoryId)
+        }
+
+        val products = query.resultList
+        if (products.isEmpty()) {
+            return emptyList()
+        }
+
+        val itemsByProductId = findItemsByProductIds(products.map { it.id })
+        return products.map { product ->
+            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+        }
+    }
+
+    open fun findProductsByIds(productIds: List<UUID>): List<ProductWithItems> {
+        if (productIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val products = entityManager.createQuery(
+            "select p from Product p where p.id in :ids",
+            Product::class.java,
+        )
+            .setParameter("ids", productIds)
+            .resultList
+
+        val itemsByProductId = findItemsByProductIds(productIds)
+        return products.map { product ->
+            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+        }
     }
 
     open fun findProductCreatedAt(productId: UUID): LocalDate? =
@@ -113,6 +165,20 @@ open class ProductRepository(
         )
             .setParameter("productId", productId)
             .resultList
+
+    private fun findItemsByProductIds(productIds: List<UUID>): Map<UUID, List<ProductItem>> {
+        if (productIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return entityManager.createQuery(
+            "select i from ProductItem i where i.productId in :productIds",
+            ProductItem::class.java,
+        )
+            .setParameter("productIds", productIds)
+            .resultList
+            .groupBy { it.productId }
+    }
 
     private fun deleteItemsByProductId(productId: UUID) {
         entityManager.createQuery("delete from ProductItem i where i.productId = :productId")

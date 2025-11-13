@@ -40,14 +40,7 @@ class ProductService(
             return cached
         }
 
-        val products = productRepository.findAll()
-            .let { aggregates ->
-                aggregates
-                    .filter { aggregate ->
-                        categoryId?.let { aggregate.product.categoryId == it } ?: true
-                    }
-                    .sortedWith(productComparator(sort))
-            }
+        val products = productRepository.findProducts(categoryId, sort)
         val outputs = products.map { it.toOutput() }
         cacheService.put(cacheKey, outputs, DEFAULT_CACHE_TTL_SECONDS)
 
@@ -141,9 +134,16 @@ class ProductService(
 
         val cutoff = Instant.now().minus(days, ChronoUnit.DAYS)
         val rows = productRepository.findPopularProductsSince(cutoff, limit)
+        if (rows.isEmpty()) {
+            return TopProductsOutput(period = "${days}days", products = emptyList())
+        }
+
+        val aggregatesById = productRepository
+            .findProductsByIds(rows.map { it.productId })
+            .associateBy { it.product.id }
 
         val ranked = rows.mapIndexed { index, row ->
-            val aggregate = productRepository.findById(row.productId)
+            val aggregate = aggregatesById[row.productId]
                 ?: throw ProductNotFoundException(row.productId.toString())
             TopProductOutput(
                 rank = index + 1,

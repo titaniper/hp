@@ -40,16 +40,28 @@ open class OrderRepository(
         )
     }
 
-    open fun findAll(): List<OrderAggregate> =
-        entityManager.createQuery("select o from Order o order by o.orderedAt", Order::class.java)
+    open fun findAll(): List<OrderAggregate> {
+        val orders = entityManager.createQuery(
+            "select o from Order o order by o.orderedAt",
+            Order::class.java,
+        )
             .resultList
-            .map { order ->
-                OrderAggregate(
-                    order = order,
-                    items = findItems(order.id),
-                    discounts = findDiscounts(order.id),
-                )
-            }
+        if (orders.isEmpty()) {
+            return emptyList()
+        }
+
+        val orderIds = orders.map { it.id }
+        val itemsByOrderId = findItemsByOrderIds(orderIds)
+        val discountsByOrderId = findDiscountsByOrderIds(orderIds)
+
+        return orders.map { order ->
+            OrderAggregate(
+                order = order,
+                items = itemsByOrderId[order.id].orEmpty(),
+                discounts = discountsByOrderId[order.id].orEmpty(),
+            )
+        }
+    }
 
     @Transactional
     open fun update(aggregate: OrderAggregate): OrderAggregate {
@@ -67,20 +79,38 @@ open class OrderRepository(
     }
 
     private fun findItems(orderId: UUID): List<OrderItem> =
-        entityManager.createQuery(
-            "select i from OrderItem i where i.orderId = :orderId",
-            OrderItem::class.java,
-        )
-            .setParameter("orderId", orderId)
-            .resultList
+        findItemsByOrderIds(listOf(orderId))[orderId].orEmpty()
 
     private fun findDiscounts(orderId: UUID): List<OrderDiscount> =
-        entityManager.createQuery(
-            "select d from OrderDiscount d where d.orderId = :orderId",
+        findDiscountsByOrderIds(listOf(orderId))[orderId].orEmpty()
+
+    private fun findItemsByOrderIds(orderIds: List<UUID>): Map<UUID, List<OrderItem>> {
+        if (orderIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return entityManager.createQuery(
+            "select i from OrderItem i where i.orderId in :orderIds",
+            OrderItem::class.java,
+        )
+            .setParameter("orderIds", orderIds)
+            .resultList
+            .groupBy { it.orderId }
+    }
+
+    private fun findDiscountsByOrderIds(orderIds: List<UUID>): Map<UUID, List<OrderDiscount>> {
+        if (orderIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return entityManager.createQuery(
+            "select d from OrderDiscount d where d.orderId in :orderIds",
             OrderDiscount::class.java,
         )
-            .setParameter("orderId", orderId)
+            .setParameter("orderIds", orderIds)
             .resultList
+            .groupBy { it.orderId }
+    }
 
     private fun deleteItemsByOrderId(orderId: UUID) {
         entityManager.createQuery("delete from OrderItem i where i.orderId = :orderId")

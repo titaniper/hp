@@ -31,14 +31,14 @@ class ProductServiceTest {
 
         assertThat(first).isNotEmpty()
         assertThat(second).isEqualTo(first)
-        assertThat(productRepository.findAllCalls).isEqualTo(1)
+        assertThat(productRepository.findProductsCalls).isEqualTo(1)
     }
 
     @Test
     fun `createProduct invalidates cache`() {
         val categoryId = UUID.randomUUID()
         productService.getProducts(categoryId = categoryId)
-        assertThat(productRepository.findAllCalls).isEqualTo(1)
+        assertThat(productRepository.findProductsCalls).isEqualTo(1)
 
         productService.createProduct(
             ProductService.CreateProductCommand(
@@ -66,7 +66,7 @@ class ProductServiceTest {
 
         productService.getProducts(categoryId = categoryId)
 
-        assertThat(productRepository.findAllCalls).isEqualTo(2)
+        assertThat(productRepository.findProductsCalls).isEqualTo(2)
     }
 
     @Test
@@ -81,11 +81,14 @@ class ProductServiceTest {
     }
 
     private class CountingProductRepository : ProductRepository() {
-        var findAllCalls = 0
+        var findProductsCalls = 0
 
-        override fun findAll(): List<io.joopang.services.product.domain.ProductWithItems> {
-            findAllCalls += 1
-            return super.findAll()
+        override fun findProducts(
+            categoryId: UUID?,
+            sort: io.joopang.services.product.domain.ProductSort,
+        ): List<io.joopang.services.product.domain.ProductWithItems> {
+            findProductsCalls += 1
+            return super.findProducts(categoryId, sort)
         }
     }
 }

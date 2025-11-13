@@ -208,10 +208,13 @@ class CartService(
             )
         }
 
-        val aggregates = items
-            .map { it.productId }
-            .distinct()
-            .associateWith { productId -> productRepository.findById(productId) }
+        val aggregates = if (items.isEmpty()) {
+            emptyMap()
+        } else {
+            productRepository
+                .findProductsByIds(items.map { it.productId }.distinct())
+                .associateBy { it.product.id }
+        }
 
         val pricingLines = mutableListOf<CartPricingLine>()
         val itemViews = items.map { item ->
