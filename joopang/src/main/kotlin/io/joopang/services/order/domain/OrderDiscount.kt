@@ -5,12 +5,21 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Index
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.util.UUID
 
 @Entity
-@Table(name = "order_discounts")
+@Table(
+    name = "order_discounts",
+    indexes = [
+        Index(
+            name = "idx_order_discounts_order_id",
+            columnList = "order_id",
+        ),
+    ],
+)
 data class OrderDiscount(
     @Id
     @Column(columnDefinition = "BINARY(16)")

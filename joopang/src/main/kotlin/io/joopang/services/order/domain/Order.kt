@@ -6,6 +6,7 @@ import io.joopang.services.common.infrastructure.jpa.OrderMonthAttributeConverte
 import jakarta.persistence.Column
 import jakarta.persistence.Convert
 import jakarta.persistence.Entity
+import jakarta.persistence.Index
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
@@ -14,7 +15,19 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "orders")
+@Table(
+    name = "orders",
+    indexes = [
+        Index(
+            name = "idx_orders_status_paid_at_desc",
+            columnList = "status, paid_at DESC",
+        ),
+        Index(
+            name = "idx_orders_ordered_at_desc",
+            columnList = "ordered_at DESC",
+        ),
+    ],
+)
 data class Order(
     @Id
     @Column(columnDefinition = "BINARY(16)")

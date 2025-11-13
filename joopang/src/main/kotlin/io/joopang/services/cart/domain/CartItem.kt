@@ -4,11 +4,21 @@ import io.joopang.services.common.domain.Quantity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 import java.util.UUID
 
 @Entity
-@Table(name = "cart_items")
+@Table(
+    name = "cart_items",
+    indexes = [
+        Index(
+            name = "idx_cart_items_user_product_item",
+            columnList = "user_id, product_item_id",
+            unique = true,
+        ),
+    ],
+)
 data class CartItem(
     @Id
     @Column(columnDefinition = "BINARY(16)")

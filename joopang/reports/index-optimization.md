@@ -1,92 +1,102 @@
 # 인덱스 최적화 제안서
 
-_작성일: 2025-11-10_
+_작성일: 2025-11-13_
 
-Spring Data/JPA 전환 이후 대부분의 조회가 EntityManager 기반 JPQL/네이티브 쿼리로 수행되면서, 특정 컬럼 접근이 빈번하지만 아직 적절한 보조 인덱스가 없는 테이블이 확인됐습니다. 아래 제안은 현재 코드 상의 조회 패턴을 기준으로, MySQL 8.0에서 손쉽게 적용할 수 있는 인덱스 계획과 기대 효과를 정리한 것입니다.
+👉 본 문서는 **MySQL 8.0(InnoDB)** 기준으로 작성했습니다.
+
+현재 서비스는 Spring Data Repository 대신 `EntityManager`를 직접 사용하는 JPQL/네이티브 쿼리 위주 구조입니다. 테이블 대부분이 UUID(BINARY(16)) PK만 가진 상태여서, 조회 조건이나 정렬 조건이 붙는 곳에서 풀스캔/Filesort가 빈번하게 발생할 수 있습니다. 아래 제안은 현재 코드 기준으로 꼭 필요한 보조 인덱스를 정리한 것입니다.
 
 ## 1. `cart_items`
-- **주요 쿼리**
-  - `findByUserId`, `findByUserIdAndProductItemId`, `deleteByUserId` (`CartItemRepository`)
-- **문제**
-  - 사용자별 장바구니 조회와 품목 병합 시 `user_id`+`product_item_id` 조합을 반복적으로 스캔하지만, PK(`id`) 외 보조 인덱스가 없습니다.
+- **주요 경로**: `CartItemRepository.findByUserId()` / `findByUserIdAndProductItemId()` / `deleteByUserId()` (`src/main/kotlin/io/joopang/services/cart/infrastructure/CartItemRepository.kt:16-51`), `CartService.addItem()` · `mergeCarts()` (`src/main/kotlin/io/joopang/services/cart/application/CartService.kt:28-159`)
 - **권장 인덱스**
   ```sql
-  CREATE INDEX idx_cart_items_user ON cart_items(user_id);
-  CREATE UNIQUE INDEX uk_cart_items_user_product_item ON cart_items(user_id, product_item_id);
+  CREATE UNIQUE INDEX idx_cart_items_user_product_item
+    ON cart_items(user_id, product_item_id);
   ```
-- **기대 효과**
-  - 사용자 장바구니 조회와 게스트→회원 병합 (`mergeCarts`) 시 풀스캔 대신 range scan으로 전환돼 지연 시간이 크게 줄고, 동일 사용자·옵션 중복 저장을 DB 레벨에서 차단 가능.
+- **기대 효과**: 사용자 장바구니 조회/병합 시 풀스캔 대신 range scan으로 전환되고, 동일 사용자·옵션 조합 중복 삽입을 DB 레벨에서 차단해 `CartService` 경쟁 조건을 제거합니다.
 
 ## 2. `coupons`
-- **주요 쿼리**
-  - `findUserCoupons`, `findUserCoupon`, `findUserCouponByTemplate` (`CouponRepository`)
-- **문제**
-  - 쿠폰 발급/조회가 모두 `user_id` 혹은 `user_id + coupon_template_id` 조건으로 실행되지만 관련 인덱스가 없어 만 건 단위 테이블에서 비용이 커집니다.
+- **주요 경로**: `CouponRepository.findUserCoupons()` / `findUserCouponByTemplate()` (`src/main/kotlin/io/joopang/services/coupon/infrastructure/CouponRepository.kt:19-45`), `CouponService.issueCoupon()` (`src/main/kotlin/io/joopang/services/coupon/application/CouponService.kt:26-75`)
 - **권장 인덱스**
   ```sql
-  CREATE INDEX idx_coupons_user ON coupons(user_id);
-  CREATE INDEX idx_coupons_user_template ON coupons(user_id, coupon_template_id);
+  CREATE INDEX idx_coupons_user_template
+    ON coupons(user_id, coupon_template_id);
   ```
-- **기대 효과**
-  - 동일 사용자의 보유 쿠폰 집합을 빠르게 스캔할 수 있어 발급·만료 처리 트랜잭션 시간이 단축되고, 템플릿별 중복 발급 검사도 index only scan으로 해결.
+- **기대 효과**: 사용자 보유 쿠폰 목록과 템플릿별 중복 발급 검사 모두 index only scan으로 처리되어 선착순 발급 API의 지연이 줄고, 만 건 단위 쿠폰에서도 사용자 단위 스캔 비용을 최소화할 수 있습니다.
 
-## 3. `orders` / `order_items`
-- **주요 쿼리**
-  - `findAll` (정렬: `ordered_at`) (`OrderRepository`)
-  - 인기 상품 통계 네이티브 쿼리 (`ProductRepository.findPopularProductsSince`) — 조건: `orders.status='PAID' AND orders.paid_at >= ?`, 조인: `order_items.order_id`, 그룹: `order_items.product_id`
-- **문제**
-  - 대량 주문 이력에서 PAID 주문만 추려 최근 매출을 집계할 때 테이블/조인 스캔 비용이 커집니다.
+## 3. `orders`
+- **주요 경로**: `OrderRepository.findAll()` (`src/main/kotlin/io/joopang/services/order/infrastructure/OrderRepository.kt:43-52`), 인기 상품 통계 네이티브 쿼리 `ProductRepository.findPopularProductsSince()` (`src/main/kotlin/io/joopang/services/product/infrastructure/ProductRepository.kt:47-79`)
 - **권장 인덱스**
   ```sql
-  CREATE INDEX idx_orders_status_paid_at ON orders(status, paid_at);
-  CREATE INDEX idx_orders_ordered_at ON orders(ordered_at);
-  CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-  CREATE INDEX idx_order_items_product_id ON order_items(product_id);
-  ```
-- **기대 효과**
-  - 상태·결제일 조건을 만족하는 주문 범위를 빠르게 찾고, 주문/주문항목 조인 시 Nested Loop 효율을 개선합니다. `findAll`의 `order by ordered_at` 역시 Filesort 없이 커버 가능.
+  CREATE INDEX idx_orders_status_paid_at_desc
+    ON orders(status, paid_at DESC);
 
-## 4. `deliveries`
-- **주요 쿼리**
-  - `findByOrderItemId` (`DeliveryRepository`)
-- **문제**
-  - 주문 품목 단위로 배송 객체를 가져오지만 `order_item_id`에 인덱스가 없어 배송 수 증가 시 응답이 느려집니다.
-- **권장 인덱스**
-  ```sql
-  CREATE INDEX idx_deliveries_order_item_id ON deliveries(order_item_id);
+  CREATE INDEX idx_orders_ordered_at_desc
+    ON orders(ordered_at DESC);
   ```
-- **기대 효과**
-  - 주문 상세 화면과 배송 상태 동기화 작업에서 배송 레코드를 즉시 탐색 가능.
+- **기대 효과**: 결제 완료 주문을 `status='PAID' AND paid_at >= ?` 조건으로 빠르게 걸러 인기 상품 집계 조인의 드라이빙 비용을 줄이고, 최근 주문을 우선 노출하는 정렬(`ORDER BY ordered_at DESC`)도 Filesort 없이 DESC 인덱스를 그대로 활용할 수 있습니다.
 
-## 5. `payments`
-- **주요 쿼리**
-  - `findByOrderId` (`PaymentRepository`)
-- **문제**
-  - 결제/환불 이력을 주문 ID로 반복 조회하지만 보조 인덱스가 없습니다.
+## 4. `order_items`
+- **주요 경로**: `OrderRepository.findItems()` / `deleteItemsByOrderId()` (`src/main/kotlin/io/joopang/services/order/infrastructure/OrderRepository.kt:69-95`), `ProductRepository.findPopularProductsSince()` (`src/main/kotlin/io/joopang/services/product/infrastructure/ProductRepository.kt:47-79`)
 - **권장 인덱스**
   ```sql
-  CREATE INDEX idx_payments_order_id ON payments(order_id);
-  ```
-- **기대 효과**
-  - 주문별 결제 히스토리 조회, 정산 배치가 인덱스 range scan으로 전환됩니다.
+  CREATE INDEX idx_order_items_order_id
+    ON order_items(order_id);
 
-## 6. `categories`
-- **주요 쿼리**
-  - `findByParentId` (`CategoryRepository`)
-- **문제**
-  - 카테고리 트리 조회 시 부모 ID별 자식을 자주 읽지만, `parent_id`에 인덱스가 없어 전체 스캔 후 필터링합니다.
+  CREATE INDEX idx_order_items_product_id
+    ON order_items(product_id);
+  ```
+- **기대 효과**: 주문 단위 아이템 로딩/삭제가 전부 order_id range scan으로 바뀌어 `OrderRepository`가 대량 주문에서도 안정적인 성능을 내고, 상품 인기 집계 시 `product_id` 조인/그룹 단계에서 조기 필터링이 가능합니다.
+
+## 5. `order_discounts`
+- **주요 경로**: `OrderRepository.findDiscounts()` / `deleteDiscountsByOrderId()` (`src/main/kotlin/io/joopang/services/order/infrastructure/OrderRepository.kt:77-94`)
 - **권장 인덱스**
   ```sql
-  CREATE INDEX idx_categories_parent_id ON categories(parent_id);
+  CREATE INDEX idx_order_discounts_order_id
+    ON order_discounts(order_id);
   ```
-- **기대 효과**
-  - 전체 계층 로딩과 관리자 UI 탐색 시 I/O가 크게 감소합니다.
+- **기대 효과**: 주문 집계 시 할인 행 로딩/삭제가 테이블 풀스캔 없이 수행되어 결제 처리(`processPayment`)의 응답 시간을 안정적으로 유지할 수 있습니다.
+
+## 6. `product_items`
+- **주요 경로**: `ProductRepository.findItems()` / `deleteItemsByProductId()` (`src/main/kotlin/io/joopang/services/product/infrastructure/ProductRepository.kt:26-121`), 재고 검증/예약 로직 (`CartService` · `OrderService`)
+- **권장 인덱스**
+  ```sql
+  CREATE INDEX idx_product_items_product_id
+    ON product_items(product_id);
+  ```
+- **기대 효과**: 상품 상세/장바구니/주문 흐름에서 반복되는 상품-옵션 로딩과 삭제가 모두 product_id 기반 range scan으로 처리되어 재고 예약 루프의 잠금 보유 시간을 단축합니다.
+
+## 7. `deliveries`
+- **주요 경로**: `DeliveryRepository.findByOrderItemId()` (`src/main/kotlin/io/joopang/services/delivery/infrastructure/DeliveryRepository.kt:23-29`), `DeliveryService.listDeliveries()` (`src/main/kotlin/io/joopang/services/delivery/application/DeliveryService.kt:20-45`)
+- **권장 인덱스**
+  ```sql
+  CREATE INDEX idx_deliveries_order_item_id
+    ON deliveries(order_item_id);
+  ```
+- **기대 효과**: 주문 상세에서 품목별 배송 정보 조회가 즉시 order_item_id range scan으로 수행되어 배송 상태 동기화 API의 응답이 선형으로 늘어나지 않습니다.
+
+## 8. `payments`
+- **주요 경로**: `PaymentRepository.findByOrderId()` (`src/main/kotlin/io/joopang/services/payment/infrastructure/PaymentRepository.kt:23-29`), `PaymentService.listPayments()` (`src/main/kotlin/io/joopang/services/payment/application/PaymentService.kt:20-49`)
+- **권장 인덱스**
+  ```sql
+  CREATE INDEX idx_payments_order_id
+    ON payments(order_id);
+  ```
+- **기대 효과**: 주문 단위 결제/환불 이력 조회가 order_id range scan으로 바뀌어 정산/배치 작업이 테이블 크기에 덜 민감해집니다.
+
+## 9. `categories`
+- **주요 경로**: `CategoryRepository.findByParentId()` (`src/main/kotlin/io/joopang/services/category/infrastructure/CategoryRepository.kt:23-37`), 관리자 카테고리 트리 조회(`CategoryService.listCategories()`)
+- **권장 인덱스**
+  ```sql
+  CREATE INDEX idx_categories_parent_id
+    ON categories(parent_id);
+  ```
+- **기대 효과**: 부모별 자식 카테고리 탐색이 전부 parent_id range scan으로 동작해 전체 트리를 단계별로 펼칠 때 불필요한 풀스캔을 제거합니다.
 
 ---
 
-### 적용 팁
-- MySQL 8.0에서는 `CREATE INDEX`가 온라인 DDL로 실행돼 읽기 잠금이 최소화됩니다. 다만 대량 테이블에 인덱스를 추가할 때는 저부하 시간대에 수행하고, 배포 스크립트에 포함시키는 것이 안전합니다.
-- `ddl-auto=update` 환경에서는 애플리케이션이 인덱스를 자동 생성하지 않으므로, 위 DDL을 Flyway/Liquibase 마이그레이션이나 DBA 스크립트에 명시적으로 추가해야 합니다.
-
- 1. Flyway/Liquibase 마이그레이션에 보고서의 DDL을 반영해 운영 DB에 적용하세요(온라인 DDL이지만 저부하 시간대 권장).
-  2. 인덱스 추가 후 ANALYZE TABLE로 통계를 새로 계산하고, 인기 상품/장바구니 API의 실제 쿼리 플랜을 확인해 효과를 검증하세요.
+### 적용 및 검증 팁
+- MySQL 8.0의 온라인 DDL(`CREATE INDEX ... ALGORITHM=INPLACE, LOCK=NONE`)을 활용하면 서비스 중단 없이 적용 가능합니다. 다만 대용량 테이블(`orders`, `order_items`)은 저부하 시간대를 선택하세요.
+- Flyway/Liquibase 마이그레이션으로 관리하고, 배포 후 `ANALYZE TABLE <table>`을 실행해 통계를 최신 상태로 유지한 뒤 `EXPLAIN`으로 쿼리 플랜이 실제로 인덱스를 태우는지 확인하세요.
+- 정렬 방향이 명확한 쿼리는 인덱스 정의에 `ASC`/`DESC`를 명시하면(MySQL 8.0+) 다중 컬럼 정렬 조건을 그대로 커버할 수 있습니다. 예) `ON orders(status, paid_at DESC)`.
+- 카디널리티가 낮은 컬럼(상태 값 등)에 새 인덱스를 추가할 때는 `SHOW INDEX FROM <table>`로 기존 인덱스와 중복되지 않는지 검사하고, 필요 시 불필요한 인덱스를 함께 정리해 쓰기 부하를 억제하세요.

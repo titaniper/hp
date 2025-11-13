@@ -8,13 +8,22 @@ import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Index
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
 import java.util.UUID
 
 @Entity
-@Table(name = "deliveries")
+@Table(
+    name = "deliveries",
+    indexes = [
+        Index(
+            name = "idx_deliveries_order_item_id",
+            columnList = "order_item_id",
+        ),
+    ],
+)
 data class Delivery(
     @Id
     @Column(columnDefinition = "BINARY(16)")
