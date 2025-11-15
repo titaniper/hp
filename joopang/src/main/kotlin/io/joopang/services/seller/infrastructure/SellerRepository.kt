@@ -10,11 +10,11 @@ class SellerRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findAll(): List<Seller> =
+    fun findAll(): List<Seller> =
         entityManager.createQuery("select s from Seller s", Seller::class.java)
             .resultList
 
-    open fun findById(id: Long): Seller? =
+    fun findById(id: Long): Seller? =
         entityManager.find(Seller::class.java, id)
 
     fun save(seller: Seller): Seller =

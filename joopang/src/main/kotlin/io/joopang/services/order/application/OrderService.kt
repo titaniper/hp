@@ -15,16 +15,20 @@ import io.joopang.services.order.domain.OrderDiscount
 import io.joopang.services.order.domain.OrderDiscountType
 import io.joopang.services.order.domain.OrderItem
 import io.joopang.services.order.domain.OrderNotFoundException
+import io.joopang.services.order.domain.OrderOwnershipException
 import io.joopang.services.order.domain.OrderStatus
+import io.joopang.services.order.domain.OrderPaymentNotAllowedException
 import io.joopang.services.order.infrastructure.OrderRepository
 import io.joopang.services.product.domain.InsufficientStockException
 import io.joopang.services.product.domain.ProductItemNotFoundException
 import io.joopang.services.product.domain.ProductNotFoundException
 import io.joopang.services.product.domain.ProductWithItems
+import io.joopang.services.product.domain.ProductItemInactiveException
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.RoundingMode
@@ -42,12 +46,13 @@ class OrderService(
     private val dataTransmissionService: OrderDataTransmissionService,
     private val productLockManager: ProductLockManager,
 ) {
+    private val logger = LoggerFactory.getLogger(OrderService::class.java)
 
     @Transactional
     fun createOrder(command: CreateOrderCommand): Output {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
-        val userId = user.id ?: throw IllegalStateException("User id is null")
+        val userId = user.id
         val now = Instant.now()
         val orderMonth = toOrderMonth(now, command.zoneId)
 
@@ -121,18 +126,21 @@ class OrderService(
 
     @Transactional
     fun processPayment(command: ProcessPaymentCommand): PaymentOutput {
-        val aggregate = orderRepository.findById(command.orderId)
+        val aggregate = orderRepository.findByIdForUpdate(command.orderId)
             ?: throw OrderNotFoundException(command.orderId.toString())
 
         if (aggregate.order.userId != command.userId) {
-            throw IllegalStateException("Order does not belong to user ${command.userId}")
+            throw OrderOwnershipException(command.orderId.toString(), command.userId.toString())
         }
         if (!aggregate.order.canPay()) {
-            throw IllegalStateException("Order ${aggregate.order.id} cannot be paid in status ${aggregate.order.status}")
+            throw OrderPaymentNotAllowedException(
+                aggregate.order.id.toString(),
+                aggregate.order.status,
+            )
         }
-        val orderId = aggregate.order.id ?: throw IllegalStateException("Order id is null")
+        val orderId = aggregate.order.id
 
-        val user = userRepository.findById(command.userId)
+        val user = userRepository.findByIdForUpdate(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
 
         val payableAmount = aggregate.order.payableAmount()
@@ -144,10 +152,10 @@ class OrderService(
                 val coupon = couponRepository.findById(couponId)
                     ?: throw CouponNotFoundException(couponId.toString())
                 if (coupon.userId != aggregate.order.userId) {
-                    throw IllegalStateException("Coupon $couponId does not belong to user ${aggregate.order.userId}")
+                    throw InvalidCouponException("Coupon $couponId does not belong to user ${aggregate.order.userId}")
                 }
                 if (coupon.status != CouponStatus.AVAILABLE) {
-                    throw IllegalStateException("Coupon $couponId is not available")
+                    throw InvalidCouponException("Coupon $couponId is not available")
                 }
                 val usedAt = Instant.now()
                 val updatedCoupon = coupon.markUsed(
@@ -213,16 +221,22 @@ class OrderService(
                             ?: throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
 
                         if (!currentItem.isActive()) {
-                            throw IllegalStateException("Product item $productItemId is not active")
+                            throw ProductItemInactiveException(productId.toString(), productItemId.toString())
                         }
 
                         val requested = StockQuantity.of(itemCommand.quantity.toLong())
                         if (!currentItem.stock.isGreaterOrEqual(requested)) {
-                            throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
+                            throw InsufficientStockException(productId.toString(), productItemId.toString())
                         }
 
                         val consumed = productRepository.consumeStock(productItemId, itemCommand.quantity.toLong())
                         if (!consumed) {
+                            logger.warn(
+                                "Failed to consume stock. productId={}, productItemId={}, requested={}",
+                                productId,
+                                productItemId,
+                                itemCommand.quantity,
+                            )
                             throw InsufficientStockException(productId.toString(), productItemId.toString())
                         }
 

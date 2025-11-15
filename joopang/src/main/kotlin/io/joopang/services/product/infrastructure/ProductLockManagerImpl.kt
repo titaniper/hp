@@ -7,6 +7,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 
+/**
+ * JVM 프로세스 내에서만 유효한 단순 락 구현.
+ * 다중 인스턴스 환경에서는 외부 분산 락으로 교체해야 한다.
+ */
 @Component
 class ProductLockManagerImpl : ProductLockManager {
 

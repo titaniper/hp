@@ -10,7 +10,7 @@ class CartItemRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findByUserId(userId: Long): List<CartItem> =
+    fun findByUserId(userId: Long): List<CartItem> =
         entityManager.createQuery(
             "select c from CartItem c where c.userId = :userId",
             CartItem::class.java,
@@ -18,10 +18,10 @@ class CartItemRepository(
             .setParameter("userId", userId)
             .resultList
 
-    open fun findById(cartItemId: Long): CartItem? =
+    fun findById(cartItemId: Long): CartItem? =
         entityManager.find(CartItem::class.java, cartItemId)
 
-    open fun findByUserIdAndProductItemId(userId: Long, productItemId: Long): CartItem? =
+    fun findByUserIdAndProductItemId(userId: Long, productItemId: Long): CartItem? =
         entityManager.createQuery(
             "select c from CartItem c where c.userId = :userId and c.productItemId = :productItemId",
             CartItem::class.java,

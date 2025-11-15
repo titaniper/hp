@@ -5,6 +5,7 @@ import io.joopang.services.order.domain.OrderAggregate
 import io.joopang.services.order.domain.OrderDiscount
 import io.joopang.services.order.domain.OrderItem
 import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 
@@ -34,17 +35,13 @@ class OrderRepository(
         return aggregate
     }
 
-    open fun findById(orderId: Long): OrderAggregate? {
-        val order = entityManager.find(Order::class.java, orderId) ?: return null
-        val id = order.id
-        return OrderAggregate(
-            order = order,
-            items = findItems(id),
-            discounts = findDiscounts(id),
-        )
-    }
+    fun findById(orderId: Long): OrderAggregate? =
+        entityManager.find(Order::class.java, orderId)?.let { toAggregate(it) }
 
-    open fun findAll(): List<OrderAggregate> {
+    fun findByIdForUpdate(orderId: Long): OrderAggregate? =
+        entityManager.find(Order::class.java, orderId, LockModeType.PESSIMISTIC_WRITE)?.let { toAggregate(it) }
+
+    fun findAll(): List<OrderAggregate> {
         val orders = entityManager.createQuery(
             "select o from Order o order by o.orderedAt",
             Order::class.java,
@@ -92,6 +89,15 @@ class OrderRepository(
         entityManager.createQuery("delete from OrderDiscount").executeUpdate()
         entityManager.createQuery("delete from OrderItem").executeUpdate()
         entityManager.createQuery("delete from Order").executeUpdate()
+    }
+
+    private fun toAggregate(order: Order): OrderAggregate {
+        val id = order.id
+        return OrderAggregate(
+            order = order,
+            items = findItems(id),
+            discounts = findDiscounts(id),
+        )
     }
 
     private fun findItems(orderId: Long): List<OrderItem> =

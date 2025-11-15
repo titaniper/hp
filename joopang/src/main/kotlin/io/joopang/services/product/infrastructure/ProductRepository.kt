@@ -21,14 +21,20 @@ class ProductRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findAll(): List<ProductWithItems> =
-        entityManager.createQuery("select p from Product p", Product::class.java)
+    fun findAll(): List<ProductWithItems> {
+        val products = entityManager.createQuery("select p from Product p", Product::class.java)
             .resultList
-            .map { product ->
-                ProductWithItems(product, findItems(product.id))
-            }
+        if (products.isEmpty()) {
+            return emptyList()
+        }
 
-    open fun findById(productId: Long): ProductWithItems? {
+        val itemsByProductId = findItemsByProductIds(products.map { it.id })
+        return products.map { product ->
+            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+        }
+    }
+
+    fun findById(productId: Long): ProductWithItems? {
         val product = entityManager.find(Product::class.java, productId) ?: return null
         return ProductWithItems(product, findItems(product.id))
     }
@@ -45,7 +51,7 @@ class ProductRepository(
             .setParameter("itemId", productItemId)
             .executeUpdate() == 1
 
-    open fun findProducts(categoryId: Long?, sort: ProductSort): List<ProductWithItems> {
+    fun findProducts(categoryId: Long?, sort: ProductSort): List<ProductWithItems> {
         val jpql = buildString {
             append("select p from Product p")
             if (categoryId != null) {
@@ -78,7 +84,7 @@ class ProductRepository(
         }
     }
 
-    open fun findProductsByIds(productIds: List<Long>): List<ProductWithItems> {
+    fun findProductsByIds(productIds: List<Long>): List<ProductWithItems> {
         if (productIds.isEmpty()) {
             return emptyList()
         }
@@ -96,10 +102,10 @@ class ProductRepository(
         }
     }
 
-    open fun findProductCreatedAt(productId: Long): LocalDate? =
+    fun findProductCreatedAt(productId: Long): LocalDate? =
         entityManager.find(Product::class.java, productId)?.createdAt
 
-    open fun findDailySales(productId: Long): List<DailySale> =
+    fun findDailySales(productId: Long): List<DailySale> =
         entityManager.createQuery(
             "select s from DailySale s where s.productId = :productId order by s.date",
             DailySale::class.java,
@@ -107,7 +113,7 @@ class ProductRepository(
             .setParameter("productId", productId)
             .resultList
 
-    open fun findPopularProductsSince(
+    fun findPopularProductsSince(
         since: Instant,
         limit: Int,
     ): List<PopularProductRow> {
@@ -146,22 +152,23 @@ class ProductRepository(
         entityManager.persist(product)
         entityManager.flush()
 
-        val productId = product.id ?: throw IllegalStateException("Failed to generate product id")
+        val productId = product.id.takeIf { it != 0L }
+            ?: throw IllegalStateException("Failed to generate product id")
         aggregate.items.forEach { item ->
             item.id = 0
             item.productId = productId
             entityManager.persist(item)
         }
-        entityManager.flush()
         return ProductWithItems(product, findItems(productId))
     }
 
     fun update(aggregate: ProductWithItems): ProductWithItems {
-        val existing = entityManager.find(Product::class.java, aggregate.product.id)
-            ?: throw IllegalArgumentException("Product with id ${aggregate.product.id} not found")
+        val productId = aggregate.product.id.takeIf { it != 0L }
+            ?: throw IllegalArgumentException("Product id must be provided for update")
+        val existing = entityManager.find(Product::class.java, productId)
+            ?: throw IllegalArgumentException("Product with id $productId not found")
 
-        entityManager.merge(aggregate.product)
-        val productId = existing.id ?: throw IllegalStateException("Product id is null")
+        overwriteProduct(existing, aggregate.product)
         val idsToKeep = aggregate.items.mapNotNull { item ->
             item.id.takeIf { it != 0L }
         }
@@ -180,7 +187,7 @@ class ProductRepository(
         }
         entityManager.flush()
 
-        return ProductWithItems(aggregate.product, findItems(productId))
+        return ProductWithItems(existing, findItems(productId))
     }
 
     data class PopularProductRow(
@@ -189,6 +196,22 @@ class ProductRepository(
         val salesCount: Long,
         val revenue: Money,
     )
+
+    private fun overwriteProduct(target: Product, source: Product) {
+        target.name = source.name
+        target.code = source.code
+        target.description = source.description
+        target.content = source.content
+        target.status = source.status
+        target.sellerId = source.sellerId
+        target.categoryId = source.categoryId
+        target.price = source.price
+        target.discountRate = source.discountRate
+        target.version = source.version
+        target.viewCount = source.viewCount
+        target.salesCount = source.salesCount
+        target.createdAt = source.createdAt
+    }
 
     private fun findItems(productId: Long): List<ProductItem> =
         entityManager.createQuery(

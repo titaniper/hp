@@ -7,6 +7,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 
+/**
+ * JVM 프로세스 내에서만 동작하는 단순 템플릿 락이다.
+ * 다중 인스턴스 배포 시에는 분산락 구현으로 교체해야 한다.
+ */
 @Component
 class CouponLockManagerImpl : CouponLockManager {
 

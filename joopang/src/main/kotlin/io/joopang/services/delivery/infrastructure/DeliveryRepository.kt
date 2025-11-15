@@ -10,14 +10,14 @@ class DeliveryRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findAll(): List<Delivery> =
+    fun findAll(): List<Delivery> =
         entityManager.createQuery("select d from Delivery d", Delivery::class.java)
             .resultList
 
-    open fun findById(id: Long): Delivery? =
+    fun findById(id: Long): Delivery? =
         entityManager.find(Delivery::class.java, id)
 
-    open fun findByOrderItemId(orderItemId: Long): List<Delivery> =
+    fun findByOrderItemId(orderItemId: Long): List<Delivery> =
         entityManager.createQuery(
             "select d from Delivery d where d.orderItemId = :orderItemId",
             Delivery::class.java,

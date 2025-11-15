@@ -10,14 +10,14 @@ class PaymentRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findAll(): List<Payment> =
+    fun findAll(): List<Payment> =
         entityManager.createQuery("select p from Payment p", Payment::class.java)
             .resultList
 
-    open fun findById(id: Long): Payment? =
+    fun findById(id: Long): Payment? =
         entityManager.find(Payment::class.java, id)
 
-    open fun findByOrderId(orderId: Long): List<Payment> =
+    fun findByOrderId(orderId: Long): List<Payment> =
         entityManager.createQuery(
             "select p from Payment p where p.orderId = :orderId",
             Payment::class.java,

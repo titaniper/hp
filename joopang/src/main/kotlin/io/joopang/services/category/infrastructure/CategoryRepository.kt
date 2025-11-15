@@ -10,14 +10,14 @@ class CategoryRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findAll(): List<Category> =
+    fun findAll(): List<Category> =
         entityManager.createQuery("select c from Category c", Category::class.java)
             .resultList
 
-    open fun findById(id: Long): Category? =
+    fun findById(id: Long): Category? =
         entityManager.find(Category::class.java, id)
 
-    open fun findByParentId(parentId: Long?): List<Category> =
+    fun findByParentId(parentId: Long?): List<Category> =
         if (parentId == null) {
             entityManager.createQuery(
                 "select c from Category c where c.parentId is null",

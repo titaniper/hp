@@ -2,6 +2,7 @@ package io.joopang.services.user.infrastructure
 
 import io.joopang.services.user.domain.User
 import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 
@@ -10,10 +11,13 @@ class UserRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findById(userId: Long): User? =
+    fun findById(userId: Long): User? =
         entityManager.find(User::class.java, userId)
 
-    open fun findAll(): List<User> =
+    fun findByIdForUpdate(userId: Long): User? =
+        entityManager.find(User::class.java, userId, LockModeType.PESSIMISTIC_WRITE)
+
+    fun findAll(): List<User> =
         entityManager.createQuery("select u from User u", User::class.java)
             .resultList
 
