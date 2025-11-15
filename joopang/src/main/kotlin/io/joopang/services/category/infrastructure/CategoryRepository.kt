@@ -4,11 +4,9 @@ import io.joopang.services.category.domain.Category
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class CategoryRepository(
+class CategoryRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -35,7 +33,6 @@ open class CategoryRepository(
                 .resultList
         }
 
-    @Transactional
-    open fun save(category: Category): Category =
+    fun save(category: Category): Category =
         entityManager.merge(category)
 }

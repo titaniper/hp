@@ -24,7 +24,7 @@ class CartServiceTest @Autowired constructor(
 
     @BeforeEach
     fun cleanCart() {
-        cartItemRepository.deleteByUserId(userId)
+        inTransaction { cartItemRepository.deleteByUserId(userId) }
     }
 
     @Test
@@ -79,7 +79,7 @@ class CartServiceTest @Autowired constructor(
     fun `merge carts moves items and clears guest`() {
         val guestId = 9999L
         val guestItemId = 501L
-        cartItemRepository.deleteByUserId(guestId)
+        inTransaction { cartItemRepository.deleteByUserId(guestId) }
 
         cartService.addItem(
             CartService.AddCartItemCommand(guestId, productId, guestItemId, quantity = 1),

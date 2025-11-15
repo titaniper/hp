@@ -10,7 +10,6 @@ import io.joopang.services.product.domain.StockQuantity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.sql.Timestamp
@@ -18,8 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 
 @Repository
-@Transactional(readOnly = true)
-open class ProductRepository(
+class ProductRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -35,8 +33,7 @@ open class ProductRepository(
         return ProductWithItems(product, findItems(product.id))
     }
 
-    @Transactional
-    open fun consumeStock(productItemId: Long, quantity: Long): Boolean =
+    fun consumeStock(productItemId: Long, quantity: Long): Boolean =
         entityManager.createNativeQuery(
             """
                 update product_items
@@ -144,8 +141,7 @@ open class ProductRepository(
         }
     }
 
-    @Transactional
-    open fun save(aggregate: ProductWithItems): ProductWithItems {
+    fun save(aggregate: ProductWithItems): ProductWithItems {
         val product = aggregate.product
         entityManager.persist(product)
         entityManager.flush()
@@ -160,8 +156,7 @@ open class ProductRepository(
         return ProductWithItems(product, findItems(productId))
     }
 
-    @Transactional
-    open fun update(aggregate: ProductWithItems): ProductWithItems {
+    fun update(aggregate: ProductWithItems): ProductWithItems {
         val existing = entityManager.find(Product::class.java, aggregate.product.id)
             ?: throw IllegalArgumentException("Product with id ${aggregate.product.id} not found")
 

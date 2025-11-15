@@ -31,19 +31,21 @@ class OrderServiceIntegrationTest @Autowired constructor(
 
     @BeforeEach
     fun prepareFixtures() {
-        orderRepository.deleteAll()
-        val user = userRepository.findById(userId)!!
-        userRepository.save(user.copy(balance = Money.of(10_000_000L)))
+        inTransaction {
+            orderRepository.deleteAll()
+            val user = userRepository.findById(userId)!!
+            userRepository.save(user.copy(balance = Money.of(10_000_000L)))
 
-        val aggregate = productRepository.findById(productId)!!
-        val updatedItems = aggregate.items.map { item ->
-            if (item.id == productItemId) {
-                item.copy(stock = StockQuantity.of(5))
-            } else {
-                item
+            val aggregate = productRepository.findById(productId)!!
+            val updatedItems = aggregate.items.map { item ->
+                if (item.id == productItemId) {
+                    item.copy(stock = StockQuantity.of(5))
+                } else {
+                    item
+                }
             }
+            productRepository.update(ProductWithItems(aggregate.product, updatedItems))
         }
-        productRepository.update(ProductWithItems(aggregate.product, updatedItems))
     }
 
     @Test

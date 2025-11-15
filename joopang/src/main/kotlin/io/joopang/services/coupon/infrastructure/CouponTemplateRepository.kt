@@ -5,27 +5,22 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class CouponTemplateRepository(
+class CouponTemplateRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findById(templateId: Long): CouponTemplate? =
+    fun findById(templateId: Long): CouponTemplate? =
         entityManager.find(CouponTemplate::class.java, templateId)
 
-    @Transactional
-    open fun findByIdForUpdate(templateId: Long): CouponTemplate? =
-        entityManager.find(CouponTemplate::class.java, templateId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    fun findByIdForUpdate(templateId: Long): CouponTemplate? =
+        entityManager.find(CouponTemplate::class.java, templateId, LockModeType.PESSIMISTIC_WRITE)
 
-    @Transactional
-    open fun save(template: CouponTemplate): CouponTemplate =
+    fun save(template: CouponTemplate): CouponTemplate =
         entityManager.merge(template)
 
-    @Transactional
-    open fun incrementIssuedQuantity(templateId: Long): Boolean =
+    fun incrementIssuedQuantity(templateId: Long): Boolean =
         entityManager.createNativeQuery(
             """
                 update coupon_templates

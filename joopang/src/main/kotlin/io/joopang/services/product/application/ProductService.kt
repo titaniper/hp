@@ -16,12 +16,14 @@ import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 @Service
+@Transactional(readOnly = true)
 class ProductService(
     private val productRepository: ProductRepository,
 
@@ -51,6 +53,7 @@ class ProductService(
             ?.toOutput()
             ?: throw ProductNotFoundException(productId.toString())
 
+    @Transactional
     fun createProduct(command: CreateProductCommand): Output {
         require(command.items.isNotEmpty()) { "Product must have at least one item" }
 
@@ -85,6 +88,7 @@ class ProductService(
         return saved.toOutput()
     }
 
+    @Transactional
     fun updateProduct(productId: Long, command: UpdateProductCommand): Output {
         require(command.items.isNotEmpty()) { "Product must have at least one item" }
 

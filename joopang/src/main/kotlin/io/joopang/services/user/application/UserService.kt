@@ -7,8 +7,10 @@ import io.joopang.services.user.domain.User
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class UserService(
     private val userRepository: UserRepository,
 ) {
@@ -22,6 +24,7 @@ class UserService(
             ?.toOutput()
             ?: throw UserNotFoundException(id.toString())
 
+    @Transactional
     fun registerUser(command: RegisterUserCommand): Output {
         val user = User(
             id = command.id ?: 0,

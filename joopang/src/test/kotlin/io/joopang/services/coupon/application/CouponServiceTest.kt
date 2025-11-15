@@ -56,17 +56,19 @@ class CouponServiceTest @Autowired constructor(
 
     @Test
     fun `getUserCoupons marks expired coupons`() {
-        val expiredCoupon = couponRepository.save(
-            Coupon(
-                userId = userId,
-                couponTemplateId = templateId,
-                type = couponTemplateRepository.findById(templateId)!!.type,
-                value = BigDecimal("0.10"),
-                status = CouponStatus.AVAILABLE,
-                issuedAt = Instant.now().minus(10, ChronoUnit.DAYS),
-                expiredAt = Instant.now().minus(1, ChronoUnit.DAYS),
-            ),
-        )
+        val expiredCoupon = inTransaction {
+            couponRepository.save(
+                Coupon(
+                    userId = userId,
+                    couponTemplateId = templateId,
+                    type = couponTemplateRepository.findById(templateId)!!.type,
+                    value = BigDecimal("0.10"),
+                    status = CouponStatus.AVAILABLE,
+                    issuedAt = Instant.now().minus(10, ChronoUnit.DAYS),
+                    expiredAt = Instant.now().minus(1, ChronoUnit.DAYS),
+                ),
+            )
+        }
         val expiredCouponId = expiredCoupon.id
 
         val results = couponService.getUserCoupons(userId)
@@ -91,7 +93,7 @@ class CouponServiceTest @Autowired constructor(
             startAt = Instant.now().minusSeconds(60),
             endAt = Instant.now().plusSeconds(3600),
         )
-        return couponTemplateRepository.save(template).id
+        return inTransaction { couponTemplateRepository.save(template).id }
     }
 
     private fun createUser(): Long {
@@ -103,6 +105,6 @@ class CouponServiceTest @Autowired constructor(
             lastName = "User",
             balance = Money.of(100_000L),
         )
-        return userRepository.save(user).id
+        return inTransaction { userRepository.save(user).id }
     }
 }

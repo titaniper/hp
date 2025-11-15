@@ -7,16 +7,13 @@ import io.joopang.services.order.domain.OrderItem
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class OrderRepository(
+class OrderRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    @Transactional
-    open fun save(aggregate: OrderAggregate): OrderAggregate {
+    fun save(aggregate: OrderAggregate): OrderAggregate {
         val order = aggregate.order
         require(order.id == 0L) { "Order already has an id ${order.id}" }
 
@@ -70,8 +67,7 @@ open class OrderRepository(
         }
     }
 
-    @Transactional
-    open fun update(aggregate: OrderAggregate): OrderAggregate {
+    fun update(aggregate: OrderAggregate): OrderAggregate {
         val existing = entityManager.find(Order::class.java, aggregate.order.id)
             ?: throw IllegalArgumentException("Order with id ${aggregate.order.id} does not exist")
 
@@ -92,8 +88,7 @@ open class OrderRepository(
         return aggregate
     }
 
-    @Transactional
-    open fun deleteAll() {
+    fun deleteAll() {
         entityManager.createQuery("delete from OrderDiscount").executeUpdate()
         entityManager.createQuery("delete from OrderItem").executeUpdate()
         entityManager.createQuery("delete from Order").executeUpdate()

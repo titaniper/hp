@@ -4,11 +4,9 @@ import io.joopang.services.payment.domain.Payment
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class PaymentRepository(
+class PaymentRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -27,7 +25,6 @@ open class PaymentRepository(
             .setParameter("orderId", orderId)
             .resultList
 
-    @Transactional
-    open fun save(payment: Payment): Payment =
+    fun save(payment: Payment): Payment =
         entityManager.merge(payment)
 }

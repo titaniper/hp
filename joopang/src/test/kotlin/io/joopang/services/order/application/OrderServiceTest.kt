@@ -103,32 +103,35 @@ class OrderServiceTest @Autowired constructor(
     }
 
     private fun createUserWithBalance(): Long {
-        val baseUser = userRepository.findAll().first()
-        val uniqueUser = baseUser.copy(
-            id = 0,
-            email = Email("order-${System.nanoTime()}@joopang.com"),
-            balance = Money.of(1_000_000L),
-        )
-        val saved: User = userRepository.save(uniqueUser)
-        return saved.id
+        return inTransaction {
+            val baseUser = userRepository.findAll().first()
+            val uniqueUser = baseUser.copy(
+                id = 0,
+                email = Email("order-${System.nanoTime()}@joopang.com"),
+                balance = Money.of(1_000_000L),
+            )
+            userRepository.save(uniqueUser).id
+        }
     }
 
     private fun issueTestCoupon(): Long {
-        val template = couponTemplateRepository.save(
-            CouponTemplate(
-                title = "테스트 쿠폰",
-                type = CouponType.PERCENTAGE,
-                value = BigDecimal("0.10"),
-                status = CouponTemplateStatus.ACTIVE,
-                minAmount = Money.of(10_000L),
-                maxDiscountAmount = null,
-                totalQuantity = 10,
-                issuedQuantity = 0,
-                limitQuantity = 5,
-                startAt = Instant.now().minusSeconds(60),
-                endAt = Instant.now().plusSeconds(3600),
-            ),
-        )
+        val template = inTransaction {
+            couponTemplateRepository.save(
+                CouponTemplate(
+                    title = "테스트 쿠폰",
+                    type = CouponType.PERCENTAGE,
+                    value = BigDecimal("0.10"),
+                    status = CouponTemplateStatus.ACTIVE,
+                    minAmount = Money.of(10_000L),
+                    maxDiscountAmount = null,
+                    totalQuantity = 10,
+                    issuedQuantity = 0,
+                    limitQuantity = 5,
+                    startAt = Instant.now().minusSeconds(60),
+                    endAt = Instant.now().plusSeconds(3600),
+                ),
+            )
+        }
         val templateId = template.id
         val output = couponService.issueCoupon(
             CouponService.IssueCouponCommand(
@@ -140,15 +143,17 @@ class OrderServiceTest @Autowired constructor(
     }
 
     private fun resetProductStock() {
-        val aggregate = productRepository.findById(productId)!!
-        val updatedItems = aggregate.items.map { item ->
-            if (item.id == productItemId) {
-                item.copy(stock = StockQuantity.of(5))
-            } else {
-                item
+        inTransaction {
+            val aggregate = productRepository.findById(productId)!!
+            val updatedItems = aggregate.items.map { item ->
+                if (item.id == productItemId) {
+                    item.copy(stock = StockQuantity.of(5))
+                } else {
+                    item
+                }
             }
+            productRepository.update(ProductWithItems(aggregate.product, updatedItems))
         }
-        productRepository.update(ProductWithItems(aggregate.product, updatedItems))
     }
 
     @TestConfiguration

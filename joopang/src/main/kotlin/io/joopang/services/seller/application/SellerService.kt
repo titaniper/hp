@@ -5,8 +5,10 @@ import io.joopang.services.seller.domain.SellerNotFoundException
 import io.joopang.services.seller.domain.SellerType
 import io.joopang.services.seller.infrastructure.SellerRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class SellerService(
     private val sellerRepository: SellerRepository,
 ) {
@@ -20,6 +22,7 @@ class SellerService(
             ?.toOutput()
             ?: throw SellerNotFoundException(id.toString())
 
+    @Transactional
     fun registerSeller(command: RegisterSellerCommand): Output {
         val seller = Seller(
             id = command.id ?: 0,

@@ -17,8 +17,10 @@ import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class CartService(
     private val cartItemRepository: CartItemRepository,
     private val productRepository: ProductRepository,
@@ -29,6 +31,7 @@ class CartService(
         return buildView(userId, items)
     }
 
+    @Transactional
     fun addItem(command: AddCartItemCommand): Output {
         require(command.quantity > 0) { "Quantity to add must be positive" }
 
@@ -62,6 +65,7 @@ class CartService(
         return getCart(command.userId)
     }
 
+    @Transactional
     fun updateItemQuantity(command: UpdateCartItemQuantityCommand): Output {
         val newQuantity = Quantity(command.quantity)
         val existingItem = cartItemRepository.findById(command.cartItemId)
@@ -91,6 +95,7 @@ class CartService(
         return getCart(command.userId)
     }
 
+    @Transactional
     fun removeItem(command: RemoveCartItemCommand): Output {
         val existingItem = cartItemRepository.findById(command.cartItemId)
             ?: throw CartItemNotFoundException(command.cartItemId)
@@ -104,6 +109,7 @@ class CartService(
         return getCart(command.userId)
     }
 
+    @Transactional
     fun mergeCarts(command: MergeCartCommand): Output {
         if (command.sourceUserId == command.targetUserId) {
             return getCart(command.targetUserId)

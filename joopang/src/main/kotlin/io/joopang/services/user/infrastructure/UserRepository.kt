@@ -4,11 +4,9 @@ import io.joopang.services.user.domain.User
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class UserRepository(
+class UserRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -19,7 +17,6 @@ open class UserRepository(
         entityManager.createQuery("select u from User u", User::class.java)
             .resultList
 
-    @Transactional
-    open fun save(user: User): User =
+    fun save(user: User): User =
         entityManager.merge(user)
 }

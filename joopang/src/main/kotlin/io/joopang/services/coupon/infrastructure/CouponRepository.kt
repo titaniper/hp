@@ -4,11 +4,9 @@ import io.joopang.services.coupon.domain.Coupon
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class CouponRepository(
+class CouponRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -43,7 +41,6 @@ open class CouponRepository(
             .resultList
             .firstOrNull()
 
-    @Transactional
-    open fun save(coupon: Coupon): Coupon =
+    fun save(coupon: Coupon): Coupon =
         entityManager.merge(coupon)
 }

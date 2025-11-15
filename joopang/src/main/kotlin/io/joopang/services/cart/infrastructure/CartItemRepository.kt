@@ -4,11 +4,9 @@ import io.joopang.services.cart.domain.CartItem
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class CartItemRepository(
+class CartItemRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -33,18 +31,15 @@ open class CartItemRepository(
             .resultList
             .firstOrNull()
 
-    @Transactional
-    open fun save(cartItem: CartItem): CartItem =
+    fun save(cartItem: CartItem): CartItem =
         entityManager.merge(cartItem)
 
-    @Transactional
-    open fun delete(cartItemId: Long) {
+    fun delete(cartItemId: Long) {
         val entity = entityManager.find(CartItem::class.java, cartItemId) ?: return
         entityManager.remove(entity)
     }
 
-    @Transactional
-    open fun deleteByUserId(userId: Long) {
+    fun deleteByUserId(userId: Long) {
         entityManager.createQuery("delete from CartItem c where c.userId = :userId")
             .setParameter("userId", userId)
             .executeUpdate()

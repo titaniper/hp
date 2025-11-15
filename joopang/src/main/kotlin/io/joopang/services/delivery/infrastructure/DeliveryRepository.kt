@@ -4,11 +4,9 @@ import io.joopang.services.delivery.domain.Delivery
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 
 @Repository
-@Transactional(readOnly = true)
-open class DeliveryRepository(
+class DeliveryRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
@@ -27,7 +25,6 @@ open class DeliveryRepository(
             .setParameter("orderItemId", orderItemId)
             .resultList
 
-    @Transactional
-    open fun save(delivery: Delivery): Delivery =
+    fun save(delivery: Delivery): Delivery =
         entityManager.merge(delivery)
 }

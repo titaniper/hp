@@ -9,9 +9,11 @@ import io.joopang.services.delivery.domain.DeliveryStatus
 import io.joopang.services.delivery.domain.DeliveryType
 import io.joopang.services.delivery.infrastructure.DeliveryRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 
 @Service
+@Transactional(readOnly = true)
 class DeliveryService(
     private val deliveryRepository: DeliveryRepository,
 ) {
@@ -28,6 +30,7 @@ class DeliveryService(
             ?.toOutput()
             ?: throw DeliveryNotFoundException(id.toString())
 
+    @Transactional
     fun registerDelivery(command: RegisterDeliveryCommand): Output {
         val delivery = Delivery(
             id = command.id ?: 0,

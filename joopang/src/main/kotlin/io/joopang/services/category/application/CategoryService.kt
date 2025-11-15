@@ -5,8 +5,10 @@ import io.joopang.services.category.domain.CategoryNotFoundException
 import io.joopang.services.category.domain.CategoryStatus
 import io.joopang.services.category.infrastructure.CategoryRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class CategoryService(
     private val categoryRepository: CategoryRepository,
 ) {
@@ -23,6 +25,7 @@ class CategoryService(
             ?.toOutput()
             ?: throw CategoryNotFoundException(id.toString())
 
+    @Transactional
     fun createCategory(command: CreateCategoryCommand): Output {
         val parent = command.parentId?.let { parentId ->
             categoryRepository.findById(parentId)
