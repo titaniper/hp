@@ -206,28 +206,25 @@ class OrderService(
                     val aggregate = productRepository.findById(productId)
                         ?: throw ProductNotFoundException(productId.toString())
 
-                    val updatedItems = aggregate.items.toMutableList()
-
                     productItems.forEach { itemCommand ->
                         val productItemId = itemCommand.productItemId
                             ?: throw ProductItemNotFoundException(productId.toString(), "null")
-                        val currentItemIndex = updatedItems.indexOfFirst { it.id == productItemId }
-                        if (currentItemIndex < 0) {
-                            throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
-                        }
+                        val currentItem = aggregate.items.firstOrNull { it.id == productItemId }
+                            ?: throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
 
-                        val currentItem = updatedItems[currentItemIndex]
                         if (!currentItem.isActive()) {
                             throw IllegalStateException("Product item $productItemId is not active")
                         }
 
                         val requested = StockQuantity.of(itemCommand.quantity.toLong())
                         if (!currentItem.stock.isGreaterOrEqual(requested)) {
-                            throw InsufficientStockException(productId.toString(), productItemId.toString())
+                            throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
                         }
 
-                        val updatedItem = currentItem.copy(stock = currentItem.stock - requested)
-                        updatedItems[currentItemIndex] = updatedItem
+                        val consumed = productRepository.consumeStock(productItemId, itemCommand.quantity.toLong())
+                        if (!consumed) {
+                            throw InsufficientStockException(productId.toString(), productItemId.toString())
+                        }
 
                         val quantity = Quantity(itemCommand.quantity)
                         val lineSubtotal = currentItem.unitPrice * quantity.value
@@ -242,7 +239,6 @@ class OrderService(
                         )
                     }
 
-                    productRepository.update(ProductWithItems(aggregate.product, updatedItems))
                 }
             }
 

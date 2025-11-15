@@ -162,8 +162,10 @@ SET @n := 0;
 ### 인덱스 제거 상태
 - `SHOW INDEX FROM orders`: 관련 인덱스 없음
 - `EXPLAIN` 결과
-  - type=`ALL`, key=`NULL`, rows≈472,780
-  - Extra=`Using where; Using filesort`
+  - `type=ALL`: 전체 테이블 스캔(access type 중 최악)
+  - `key=NULL`: 사용할 인덱스가 없음을 의미
+  - `rows≈472,780`: 옵티마이저가 예측한 스캔 행 수(실제 테이블 크기)
+  - `Extra=Using where; Using filesort`: 조건 필터링과 정렬을 모두 버퍼에서 처리
 - `EXPLAIN ANALYZE`
   - 실제 시간: 0.118ms~220ms, 1회 수행
   - 계획
@@ -177,8 +179,10 @@ SET @n := 0;
   - `ALTER TABLE orders ADD INDEX idx_orders_status_paid_at_desc (status, paid_at DESC);`
   - `ALTER TABLE orders ADD INDEX idx_orders_ordered_at_desc (ordered_at DESC);`
 - `EXPLAIN` 결과
-  - type=`ref`, key=`idx_orders_status_paid_at_desc`, rows≈236,390
-  - Extra=`Using where`
+  - `type=ref`: 특정 키 값을 기준으로 레인지 스캔 (상대적으로 효율적)
+  - `key=idx_orders_status_paid_at_desc`: 사용된 인덱스 이름
+  - `rows≈236,390`: 조건(status='PENDING')으로 예상되는 후보 행 수
+  - `Extra=Using where`: 인덱스로 1차 필터 후 추가 필터링 필요(정렬은 인덱스 키 순서로 해결)
 - `EXPLAIN ANALYZE`
   - 실제 시간: 0.916ms~1.17ms
   - 계획
@@ -191,3 +195,10 @@ SET @n := 0;
 - 시간: 220ms → 1ms (약 200배 개선)
 - CPU/IO: 풀스캔 + filesort 제거 → 인덱스 시퀀스 접근으로 Handler read 횟수 현저히 감소 예상
 - 정리: `status, paid_at DESC` 복합 인덱스가 필수적이며 `ordered_at DESC` 단독 인덱스도 최근 주문순 조회에 동일한 이득을 제공할 것으로 예상. 대량 데이터 환경에서는 두 인덱스를 모두 유지 권장.
+
+## EXPLAIN / EXPLAIN ANALYZE 항목 설명
+- `type`: 접근 방식. `ALL`은 테이블 풀스캔, `ref`는 특정 키 값으로 찾는 방식, `range`는 범위 스캔 등으로 나뉜다.
+- `key`: 옵티마이저가 실제로 사용한 인덱스. `NULL`이면 인덱스를 사용하지 않음.
+- `rows`: 해당 단계에서 예상되는 처리 행 수. 실제와 차이가 크면 통계 업데이트 필요.
+- `Extra`: 추가 정보. `Using where`는 인덱스 후에도 조건 검사가 필요함을 뜻하고, `Using filesort`는 인덱스가 없어 별도의 정렬 버퍼를 사용했음을 의미.
+- `EXPLAIN ANALYZE`의 `actual time=... rows=... loops=...`: 실제 수행 시간/처리 행/반복 횟수. 예시에서 220ms는 정렬·필터 때문에 발생한 비용이고, 인덱스 사용 시 1ms 수준으로 줄어든다.

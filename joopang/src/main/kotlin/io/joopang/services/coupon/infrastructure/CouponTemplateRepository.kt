@@ -2,6 +2,7 @@ package io.joopang.services.coupon.infrastructure
 
 import io.joopang.services.coupon.domain.CouponTemplate
 import jakarta.persistence.EntityManager
+import jakarta.persistence.LockModeType
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
@@ -14,6 +15,10 @@ open class CouponTemplateRepository(
 
     open fun findById(templateId: Long): CouponTemplate? =
         entityManager.find(CouponTemplate::class.java, templateId)
+
+    @Transactional
+    open fun findByIdForUpdate(templateId: Long): CouponTemplate? =
+        entityManager.find(CouponTemplate::class.java, templateId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
 
     @Transactional
     open fun save(template: CouponTemplate): CouponTemplate =

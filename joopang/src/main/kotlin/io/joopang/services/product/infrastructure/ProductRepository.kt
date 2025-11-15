@@ -6,6 +6,7 @@ import io.joopang.services.product.domain.Product
 import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductWithItems
+import io.joopang.services.product.domain.StockQuantity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
@@ -33,6 +34,19 @@ open class ProductRepository(
         val product = entityManager.find(Product::class.java, productId) ?: return null
         return ProductWithItems(product, findItems(product.id))
     }
+
+    @Transactional
+    open fun consumeStock(productItemId: Long, quantity: Long): Boolean =
+        entityManager.createNativeQuery(
+            """
+                update product_items
+                set stock = stock - :quantity
+                where id = :itemId and stock >= :quantity
+            """.trimIndent(),
+        )
+            .setParameter("quantity", quantity)
+            .setParameter("itemId", productItemId)
+            .executeUpdate() == 1
 
     open fun findProducts(categoryId: Long?, sort: ProductSort): List<ProductWithItems> {
         val jpql = buildString {

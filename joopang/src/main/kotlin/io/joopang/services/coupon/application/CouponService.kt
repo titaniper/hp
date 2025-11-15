@@ -29,7 +29,7 @@ class CouponService(
         val userId = user.id ?: throw IllegalStateException("User id is null")
 
         return couponLockManager.withTemplateLock(command.couponTemplateId) {
-            val template = couponTemplateRepository.findById(command.couponTemplateId)
+            val template = couponTemplateRepository.findByIdForUpdate(command.couponTemplateId)
                 ?: throw IllegalStateException("쿠폰 템플릿을 찾을 수 없습니다")
             val templateId = template.id ?: throw IllegalStateException("쿠폰 템플릿 ID가 없습니다")
 
@@ -37,7 +37,6 @@ class CouponService(
             if (!template.canIssue(now)) {
                 throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
             }
-            println("Template $templateId before issue: issued=${template.issuedQuantity}, total=${template.totalQuantity}")
 
             val existingCoupon = couponRepository.findUserCouponByTemplate(userId, templateId)
                 ?.takeIf { it.status == CouponStatus.AVAILABLE }
@@ -56,7 +55,6 @@ class CouponService(
                 throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
             }
             template.issue()
-            println("Template $templateId after issue: issued=${template.issuedQuantity}, total=${template.totalQuantity}")
 
             val expiry = template.endAt ?: now.plus(7, ChronoUnit.DAYS)
             val coupon = Coupon(

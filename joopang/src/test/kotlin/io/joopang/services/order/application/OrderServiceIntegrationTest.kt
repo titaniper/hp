@@ -31,6 +31,7 @@ class OrderServiceIntegrationTest @Autowired constructor(
 
     @BeforeEach
     fun prepareFixtures() {
+        orderRepository.deleteAll()
         val user = userRepository.findById(userId)!!
         userRepository.save(user.copy(balance = Money.of(10_000_000L)))
 

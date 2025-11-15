@@ -92,6 +92,13 @@ open class OrderRepository(
         return aggregate
     }
 
+    @Transactional
+    open fun deleteAll() {
+        entityManager.createQuery("delete from OrderDiscount").executeUpdate()
+        entityManager.createQuery("delete from OrderItem").executeUpdate()
+        entityManager.createQuery("delete from Order").executeUpdate()
+    }
+
     private fun findItems(orderId: Long): List<OrderItem> =
         findItemsByOrderIds(listOf(orderId))[orderId].orEmpty()
 
