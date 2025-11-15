@@ -47,4 +47,14 @@ class OrderDiscount(
     init {
         require(price >= Money.ZERO) { "Discount price cannot be negative" }
     }
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        orderId = null,
+        type = OrderDiscountType.POINT,
+        referenceId = null,
+        price = Money.ZERO,
+        couponId = null,
+    )
 }

@@ -32,4 +32,12 @@ class Seller(
             require(name.isNotBlank()) { "Seller name must not be blank" }
         }
     }
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        name = "",
+        type = SellerType.BRAND,
+        ownerId = 0,
+    )
 }

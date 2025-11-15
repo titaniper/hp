@@ -22,7 +22,15 @@ class DailySale(
 
     @Column(nullable = false)
     var quantity: Int = 0,
-)
+) {
+
+    @Suppress("unused")
+    constructor() : this(
+        productId = 0,
+        date = LocalDate.MIN,
+        quantity = 0,
+    )
+}
 
 data class DailySaleId(
     var productId: Long? = null,

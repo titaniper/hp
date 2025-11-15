@@ -51,10 +51,24 @@ class ProductItem(
 ) {
 
     init {
-        require(name.isNotBlank()) { "Product item name must not be blank" }
+        if (id != 0L || name.isNotBlank()) {
+            require(name.isNotBlank()) { "Product item name must not be blank" }
+        }
     }
 
     fun isActive(): Boolean = status == ProductItemStatus.ACTIVE
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        productId = null,
+        name = "",
+        unitPrice = Money.ZERO,
+        description = null,
+        stock = StockQuantity.ZERO,
+        status = ProductItemStatus.ACTIVE,
+        code = ProductItemCode("DEFAULT_ITEM"),
+    )
 
     fun copy(
         id: Long = this.id,

@@ -37,6 +37,7 @@ class CouponService(
             if (!template.canIssue(now)) {
                 throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
             }
+            println("Template $templateId before issue: issued=${template.issuedQuantity}, total=${template.totalQuantity}")
 
             val existingCoupon = couponRepository.findUserCouponByTemplate(userId, templateId)
                 ?.takeIf { it.status == CouponStatus.AVAILABLE }
@@ -50,8 +51,12 @@ class CouponService(
                 throw IllegalStateException("해당 쿠폰 템플릿은 이미 최대 발급 수량에 도달했습니다")
             }
 
-            val updatedTemplate = template.issue()
-            couponTemplateRepository.save(updatedTemplate)
+            val updated = couponTemplateRepository.incrementIssuedQuantity(templateId)
+            if (!updated) {
+                throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
+            }
+            template.issue()
+            println("Template $templateId after issue: issued=${template.issuedQuantity}, total=${template.totalQuantity}")
 
             val expiry = template.endAt ?: now.plus(7, ChronoUnit.DAYS)
             val coupon = Coupon(
@@ -69,7 +74,7 @@ class CouponService(
 
             IssueCouponOutput(
                 coupon = savedCoupon.toOutput(),
-                remainingQuantity = updatedTemplate.remainingQuantity(),
+                remainingQuantity = template.remainingQuantity(),
             )
         }
     }

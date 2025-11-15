@@ -69,10 +69,12 @@ class Order(
 ) {
 
     init {
-        require(recipientName.isNotBlank()) { "Recipient name must not be blank" }
-        require(totalAmount >= Money.ZERO) { "Total amount cannot be negative" }
-        require(discountAmount >= Money.ZERO) { "Discount amount cannot be negative" }
-        require(discountAmount <= totalAmount) { "Discount cannot exceed total amount" }
+        if (id != 0L || recipientName.isNotBlank()) {
+            require(recipientName.isNotBlank()) { "Recipient name must not be blank" }
+            require(totalAmount >= Money.ZERO) { "Total amount cannot be negative" }
+            require(discountAmount >= Money.ZERO) { "Discount amount cannot be negative" }
+            require(discountAmount <= totalAmount) { "Discount cannot exceed total amount" }
+        }
     }
 
     fun payableAmount(): Money = totalAmount - discountAmount
@@ -81,6 +83,21 @@ class Order(
 
     fun markPaid(paidTimestamp: Instant): Order =
         copy(status = OrderStatus.PAID, paidAt = paidTimestamp)
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        userId = 0,
+        imageUrl = null,
+        status = OrderStatus.PENDING,
+        recipientName = "",
+        orderMonth = OrderMonth.from(1970, 1),
+        totalAmount = Money.ZERO,
+        discountAmount = Money.ZERO,
+        orderedAt = Instant.EPOCH,
+        paidAt = null,
+        memo = null,
+    )
 
     fun copy(
         id: Long = this.id,

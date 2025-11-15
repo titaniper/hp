@@ -37,9 +37,20 @@ class Category(
     var parentId: Long? = null,
 ) {
     init {
-        require(level >= 0) { "Category level must be non-negative" }
-        require(name.isNotBlank()) { "Category name must not be blank" }
+        if (id != 0L || name.isNotBlank()) {
+            require(level >= 0) { "Category level must be non-negative" }
+            require(name.isNotBlank()) { "Category name must not be blank" }
+        }
     }
 
     fun isRoot(): Boolean = parentId == null
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        level = 0,
+        name = "",
+        status = CategoryStatus("DRAFT"),
+        parentId = null,
+    )
 }

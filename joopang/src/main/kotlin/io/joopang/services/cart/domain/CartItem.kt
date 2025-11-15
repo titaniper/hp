@@ -39,6 +39,15 @@ class CartItem(
     var quantity: Quantity = Quantity(0),
 ) {
 
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        userId = 0,
+        productId = 0,
+        productItemId = 0,
+        quantity = Quantity(0),
+    )
+
     fun copy(
         id: Long = this.id,
         userId: Long = this.userId,

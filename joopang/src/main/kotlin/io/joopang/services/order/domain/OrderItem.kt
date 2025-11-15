@@ -59,19 +59,35 @@ class OrderItem(
 ) {
 
     init {
-        require(productName.isNotBlank()) { "Product name must not be blank" }
-        require(subtotal == expectedSubtotal()) {
-            "Subtotal must equal unit price x quantity"
-        }
-        require(refundedAmount >= Money.ZERO) { "Refunded amount cannot be negative" }
-        require(refundedQuantity.value <= quantity.value) {
-            "Refunded quantity cannot exceed ordered quantity"
+        if (id != 0L || productName.isNotBlank()) {
+            require(productName.isNotBlank()) { "Product name must not be blank" }
+            require(subtotal == expectedSubtotal()) {
+                "Subtotal must equal unit price x quantity"
+            }
+            require(refundedAmount >= Money.ZERO) { "Refunded amount cannot be negative" }
+            require(refundedQuantity.value <= quantity.value) {
+                "Refunded quantity cannot exceed ordered quantity"
+            }
         }
     }
 
     fun expectedSubtotal(): Money = unitPrice * quantity.value
 
     fun refundableQuantity(): Quantity = Quantity(quantity.value - refundedQuantity.value)
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        orderId = null,
+        productId = null,
+        productItemId = null,
+        productName = "",
+        quantity = Quantity(0),
+        unitPrice = Money.ZERO,
+        subtotal = Money.ZERO,
+        refundedAmount = Money.ZERO,
+        refundedQuantity = Quantity(0),
+    )
 
     fun copy(
         id: Long = this.id,

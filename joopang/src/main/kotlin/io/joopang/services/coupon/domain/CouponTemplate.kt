@@ -78,14 +78,6 @@ class CouponTemplate(
     fun canIssueForUser(currentUserIssuedCount: Int): Boolean =
         limitQuantity <= 0 || currentUserIssuedCount < limitQuantity
 
-    fun issue(): CouponTemplate {
-        require(remainingQuantity() > 0) { "No coupons remaining for template $id" }
-        return copy(issuedQuantity = issuedQuantity + 1)
-    }
-
-    @Suppress("unused") // Required by JPA
-    protected constructor() : this(0)
-
     fun copy(
         id: Long = this.id,
         title: String = this.title,
@@ -114,4 +106,26 @@ class CouponTemplate(
             startAt = startAt,
             endAt = endAt,
         )
+
+    fun issue(): CouponTemplate {
+        require(remainingQuantity() > 0) { "No coupons remaining for template $id" }
+        issuedQuantity += 1
+        return this
+    }
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        title = "TEMPLATE",
+        type = CouponType.AMOUNT,
+        value = BigDecimal.ZERO,
+        status = CouponTemplateStatus.DRAFT,
+        minAmount = null,
+        maxDiscountAmount = null,
+        totalQuantity = 0,
+        issuedQuantity = 0,
+        limitQuantity = 0,
+        startAt = null,
+        endAt = null,
+    )
 }

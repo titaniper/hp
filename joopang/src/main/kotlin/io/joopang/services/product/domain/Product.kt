@@ -62,10 +62,12 @@ class Product(
 ) {
 
     init {
-        require(name.isNotBlank()) { "Product name must not be blank" }
-        require(version >= 0) { "Product version must be non-negative" }
-        require(viewCount >= 0) { "View count must be non-negative" }
-        require(salesCount >= 0) { "Sales count must be non-negative" }
+        if (id != 0L || name.isNotBlank()) {
+            require(name.isNotBlank()) { "Product name must not be blank" }
+            require(version >= 0) { "Product version must be non-negative" }
+            require(viewCount >= 0) { "View count must be non-negative" }
+            require(salesCount >= 0) { "Sales count must be non-negative" }
+        }
     }
 
     fun discountedPrice(): Money =
@@ -76,6 +78,24 @@ class Product(
         } ?: price
 
     fun hasDiscount(): Boolean = discountRate != null
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        name = "",
+        code = ProductCode("DEFAULT"),
+        description = null,
+        content = null,
+        status = ProductStatus.ON_SALE,
+        sellerId = 0,
+        categoryId = 0,
+        price = Money.ZERO,
+        discountRate = null,
+        version = 0,
+        viewCount = 0,
+        salesCount = 0,
+        createdAt = LocalDate.now(),
+    )
 
     fun copy(
         id: Long = this.id,

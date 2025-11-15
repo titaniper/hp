@@ -104,4 +104,18 @@ class Coupon(
             expiredAt = expiredAt,
             orderId = orderId,
         )
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        userId = 0,
+        couponTemplateId = null,
+        type = CouponType.AMOUNT,
+        value = BigDecimal.ZERO,
+        status = CouponStatus.AVAILABLE,
+        issuedAt = Instant.EPOCH,
+        usedAt = null,
+        expiredAt = null,
+        orderId = null,
+    )
 }

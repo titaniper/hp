@@ -61,4 +61,17 @@ class Delivery(
     init {
         require(deliveryFee >= Money.ZERO) { "Delivery fee cannot be negative" }
     }
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        orderItemId = 0,
+        type = DeliveryType.DIRECT_DELIVERY,
+        address = Address(),
+        receiverTel = PhoneNumber("0000000000"),
+        estimatedDeliveryDate = null,
+        status = DeliveryStatus.PREPARING,
+        trackingNumber = null,
+        deliveryFee = Money.ZERO,
+    )
 }

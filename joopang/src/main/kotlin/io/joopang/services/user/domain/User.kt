@@ -50,6 +50,16 @@ class User(
         return copy(balance = balance - amount)
     }
 
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        email = Email("default@example.com"),
+        password = PasswordHash("password"),
+        firstName = null,
+        lastName = null,
+        balance = Money.ZERO,
+    )
+
     fun copy(
         id: Long = this.id,
         email: Email = this.email,

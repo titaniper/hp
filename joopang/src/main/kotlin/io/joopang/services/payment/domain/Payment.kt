@@ -65,12 +65,30 @@ class Payment(
 ) {
 
     init {
-        require(paymentGateway.isNotBlank()) { "Payment gateway must not be blank" }
-        require(paymentAmount >= Money.ZERO) { "Payment amount cannot be negative" }
-        require(remainingBalance >= Money.ZERO) { "Remaining balance cannot be negative" }
+        if (id != 0L || orderId != 0L) {
+            require(paymentGateway.isNotBlank()) { "Payment gateway must not be blank" }
+            require(paymentAmount >= Money.ZERO) { "Payment amount cannot be negative" }
+            require(remainingBalance >= Money.ZERO) { "Remaining balance cannot be negative" }
+        }
     }
 
     fun isCompleted(): Boolean = status == PaymentStatus.COMPLETED
 
     fun isRefunded(): Boolean = status == PaymentStatus.REFUNDED || status == PaymentStatus.PARTIAL_REFUNDED
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        orderId = 0,
+        paymentGateway = "",
+        paymentMethod = PaymentMethod.CREDIT_CARD,
+        paymentAmount = Money.ZERO,
+        remainingBalance = Money.ZERO,
+        status = PaymentStatus.PENDING,
+        paymentKey = null,
+        transactionId = null,
+        requestedAt = Instant.EPOCH,
+        approvedAt = null,
+        cancelledAt = null,
+    )
 }

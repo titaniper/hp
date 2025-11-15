@@ -138,6 +138,7 @@ open class ProductRepository(
 
         val productId = product.id ?: throw IllegalStateException("Failed to generate product id")
         aggregate.items.forEach { item ->
+            item.id = 0
             item.productId = productId
             entityManager.persist(item)
         }
@@ -152,10 +153,21 @@ open class ProductRepository(
 
         entityManager.merge(aggregate.product)
         val productId = existing.id ?: throw IllegalStateException("Product id is null")
-        deleteItemsByProductId(productId)
+        val idsToKeep = aggregate.items.mapNotNull { item ->
+            item.id.takeIf { it != 0L }
+        }
+        if (idsToKeep.isEmpty()) {
+            deleteItemsByProductId(productId)
+        } else {
+            deleteItemsNotIn(productId, idsToKeep)
+        }
         aggregate.items.forEach { item ->
             item.productId = productId
-            entityManager.persist(item)
+            if (item.id == 0L) {
+                entityManager.persist(item)
+            } else {
+                entityManager.merge(item)
+            }
         }
         entityManager.flush()
 
@@ -194,6 +206,19 @@ open class ProductRepository(
     private fun deleteItemsByProductId(productId: Long) {
         entityManager.createQuery("delete from ProductItem i where i.productId = :productId")
             .setParameter("productId", productId)
+            .executeUpdate()
+    }
+
+    private fun deleteItemsNotIn(productId: Long, idsToKeep: List<Long>) {
+        if (idsToKeep.isEmpty()) {
+            deleteItemsByProductId(productId)
+            return
+        }
+        entityManager.createQuery(
+            "delete from ProductItem i where i.productId = :productId and i.id not in :ids",
+        )
+            .setParameter("productId", productId)
+            .setParameter("ids", idsToKeep)
             .executeUpdate()
     }
 
