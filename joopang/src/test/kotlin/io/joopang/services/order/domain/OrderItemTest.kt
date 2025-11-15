@@ -5,16 +5,14 @@ import io.joopang.services.common.domain.Quantity
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class OrderItemTest {
 
     private fun item(quantity: Int = 2): OrderItem =
         OrderItem(
-            id = UUID.randomUUID(),
-            orderId = UUID.randomUUID(),
-            productId = UUID.randomUUID(),
-            productItemId = UUID.randomUUID(),
+            orderId = 1L,
+            productId = 2L,
+            productItemId = 3L,
             productName = "상품",
             quantity = Quantity(quantity),
             unitPrice = Money.of(5_000L),

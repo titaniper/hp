@@ -17,7 +17,6 @@ import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
 import org.springframework.stereotype.Service
-import java.util.UUID
 
 @Service
 class CartService(
@@ -25,7 +24,7 @@ class CartService(
     private val productRepository: ProductRepository,
 ) {
 
-    fun getCart(userId: UUID): Output {
+    fun getCart(userId: Long): Output {
         val items = cartItemRepository.findByUserId(userId)
         return buildView(userId, items)
     }
@@ -52,7 +51,6 @@ class CartService(
 
         val updatedItem = existingItem?.copy(quantity = totalQuantity)
             ?: CartItem(
-                id = UUID.randomUUID(),
                 userId = command.userId,
                 productId = command.productId,
                 productItemId = command.productItemId,
@@ -141,7 +139,6 @@ class CartService(
                 updated
             } else {
                 val newItem = CartItem(
-                    id = UUID.randomUUID(),
                     userId = command.targetUserId,
                     productId = item.productId,
                     productItemId = item.productItemId,
@@ -159,11 +156,11 @@ class CartService(
         return getCart(command.targetUserId)
     }
 
-    private fun findProductAggregate(productId: UUID): ProductWithItems =
+    private fun findProductAggregate(productId: Long): ProductWithItems =
         productRepository.findById(productId)
             ?: throw ProductNotFoundException(productId.toString())
 
-    private fun findProductItem(aggregate: ProductWithItems, productItemId: UUID): ProductItem =
+    private fun findProductItem(aggregate: ProductWithItems, productItemId: Long): ProductItem =
         aggregate.items.firstOrNull { it.id == productItemId }
             ?: throw ProductItemNotFoundException(
                 productId = aggregate.product.id.toString(),
@@ -183,8 +180,8 @@ class CartService(
     }
 
     private fun ensureStockSufficient(
-        productId: UUID,
-        productItemId: UUID,
+        productId: Long,
+        productItemId: Long,
         stock: StockQuantity,
         requested: Quantity,
     ) {
@@ -194,7 +191,7 @@ class CartService(
         }
     }
 
-    private fun buildView(userId: UUID, items: List<CartItem>): Output {
+    private fun buildView(userId: Long, items: List<CartItem>): Output {
         if (items.isEmpty()) {
             return Output(
                 userId = userId,
@@ -286,38 +283,38 @@ class CartService(
     }
 
     data class AddCartItemCommand(
-        val userId: UUID,
-        val productId: UUID,
-        val productItemId: UUID,
+        val userId: Long,
+        val productId: Long,
+        val productItemId: Long,
         val quantity: Int,
     )
 
     data class UpdateCartItemQuantityCommand(
-        val userId: UUID,
-        val cartItemId: UUID,
+        val userId: Long,
+        val cartItemId: Long,
         val quantity: Int,
     )
 
     data class RemoveCartItemCommand(
-        val userId: UUID,
-        val cartItemId: UUID,
+        val userId: Long,
+        val cartItemId: Long,
     )
 
     data class MergeCartCommand(
-        val sourceUserId: UUID,
-        val targetUserId: UUID,
+        val sourceUserId: Long,
+        val targetUserId: Long,
     )
 
     data class Output(
-        val userId: UUID,
+        val userId: Long,
         val items: List<ItemOutput>,
         val totals: CartTotals,
     )
 
     data class ItemOutput(
-        val cartItemId: UUID,
-        val productId: UUID,
-        val productItemId: UUID,
+        val cartItemId: Long,
+        val productId: Long,
+        val productItemId: Long,
         val productName: String?,
         val productItemName: String?,
         val quantity: Quantity,

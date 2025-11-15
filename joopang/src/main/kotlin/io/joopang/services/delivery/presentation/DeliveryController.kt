@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/deliveries")
@@ -27,7 +26,7 @@ class DeliveryController(
 
     @GetMapping
     fun listDeliveries(
-        @RequestParam(required = false) orderItemId: UUID?,
+        @RequestParam(required = false) orderItemId: Long?,
     ): List<DeliveryResponse> =
         deliveryService
             .listDeliveries(orderItemId)
@@ -35,7 +34,7 @@ class DeliveryController(
 
     @GetMapping("/{id}")
     fun getDelivery(
-        @PathVariable id: UUID,
+        @PathVariable id: Long,
     ): DeliveryResponse =
         deliveryService
             .getDelivery(id)
@@ -103,7 +102,7 @@ class DeliveryController(
 }
 
 data class RegisterDeliveryRequest(
-    val orderItemId: UUID,
+    val orderItemId: Long,
     val type: String,
     val address: DeliveryAddressRequest,
     val receiverTel: String,
@@ -111,7 +110,7 @@ data class RegisterDeliveryRequest(
     val status: String,
     val trackingNumber: String?,
     val deliveryFee: BigDecimal?,
-    val id: UUID? = null,
+    val id: Long? = null,
 )
 
 data class DeliveryAddressRequest(
@@ -121,8 +120,8 @@ data class DeliveryAddressRequest(
 )
 
 data class DeliveryResponse(
-    val id: UUID,
-    val orderItemId: UUID,
+    val id: Long,
+    val orderItemId: Long,
     val type: String,
     val address: DeliveryAddressResponse,
     val receiverTel: String,

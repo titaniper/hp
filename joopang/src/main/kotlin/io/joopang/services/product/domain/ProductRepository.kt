@@ -1,10 +1,9 @@
 package io.joopang.services.product.domain
 
 import java.time.LocalDate
-import java.util.UUID
 
 data class ProductSearchCondition(
-    val categoryId: UUID? = null,
+    val categoryId: Long? = null,
     val sort: ProductSort = ProductSort.NEWEST,
 )
 

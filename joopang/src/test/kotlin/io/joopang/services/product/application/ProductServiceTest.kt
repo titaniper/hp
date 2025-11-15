@@ -1,28 +1,27 @@
 package io.joopang.services.product.application
 
-import io.joopang.services.common.application.CacheService
-import io.joopang.services.common.infrastructure.CacheServiceImpl
 import io.joopang.services.product.domain.ProductItemStatus
 import io.joopang.services.product.domain.ProductStatus
+import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.infrastructure.ProductRepository
+import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.mock.mockito.SpyBean
+import org.springframework.test.annotation.DirtiesContext
 import java.math.BigDecimal
-import java.util.UUID
 
-class ProductServiceTest {
+@SpringBootTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+class ProductServiceTest @Autowired constructor(
+    private val productService: ProductService,
+) : IntegrationTestSupport() {
 
-    private lateinit var cacheService: CacheService
-    private lateinit var productRepository: CountingProductRepository
-    private lateinit var productService: ProductService
-
-    @BeforeEach
-    fun setUp() {
-        cacheService = CacheServiceImpl()
-        productRepository = CountingProductRepository()
-        productService = ProductService(productRepository, cacheService)
-    }
+    @SpyBean
+    private lateinit var productRepository: ProductRepository
 
     @Test
     fun `getProducts caches result`() {
@@ -31,23 +30,26 @@ class ProductServiceTest {
 
         assertThat(first).isNotEmpty()
         assertThat(second).isEqualTo(first)
-        assertThat(productRepository.findProductsCalls).isEqualTo(1)
+        Mockito.verify(productRepository, Mockito.times(1))
+            .findProducts(null, ProductSort.NEWEST)
     }
 
     @Test
     fun `createProduct invalidates cache`() {
-        val categoryId = UUID.randomUUID()
+        val categoryId = 300L
         productService.getProducts(categoryId = categoryId)
-        assertThat(productRepository.findProductsCalls).isEqualTo(1)
+        Mockito.verify(productRepository, Mockito.times(1))
+            .findProducts(categoryId, ProductSort.NEWEST)
 
+        Mockito.reset(productRepository)
         productService.createProduct(
             ProductService.CreateProductCommand(
                 name = "테스트 상품",
-                code = "TEST-001",
+                code = "TEST-${System.nanoTime()}",
                 description = "desc",
                 content = null,
                 status = ProductStatus.ON_SALE,
-                sellerId = UUID.randomUUID(),
+                sellerId = 200L,
                 categoryId = categoryId,
                 price = BigDecimal("1000"),
                 discountRate = null,
@@ -58,15 +60,15 @@ class ProductServiceTest {
                         description = null,
                         stock = BigDecimal("10"),
                         status = ProductItemStatus.ACTIVE,
-                        code = "ITEM-1",
+                        code = "ITEM-${System.nanoTime()}",
                     ),
                 ),
             ),
         )
 
         productService.getProducts(categoryId = categoryId)
-
-        assertThat(productRepository.findProductsCalls).isEqualTo(2)
+        Mockito.verify(productRepository, Mockito.times(1))
+            .findProducts(categoryId, ProductSort.NEWEST)
     }
 
     @Test
@@ -74,21 +76,10 @@ class ProductServiceTest {
         val phones = productService.getProducts()
         val phone = phones.first()
 
-        val result = productService.checkStock(phone.product.id, quantity = 1)
+        val productId = phone.id
+        val result = productService.checkStock(productId, quantity = 1)
 
         assertThat(result.available).isTrue()
         assertThat(result.currentStock).isNotNull()
-    }
-
-    private class CountingProductRepository : ProductRepository() {
-        var findProductsCalls = 0
-
-        override fun findProducts(
-            categoryId: UUID?,
-            sort: io.joopang.services.product.domain.ProductSort,
-        ): List<io.joopang.services.product.domain.ProductWithItems> {
-            findProductsCalls += 1
-            return super.findProducts(categoryId, sort)
-        }
     }
 }

@@ -6,10 +6,11 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
-import java.util.UUID
 
 @Entity
 @Table(
@@ -21,13 +22,14 @@ import java.util.UUID
         ),
     ],
 )
-data class Payment(
+class Payment(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
-    @Column(name = "order_id", columnDefinition = "BINARY(16)", nullable = false)
-    var orderId: UUID = UUID(0L, 0L),
+    @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
+    var orderId: Long = 0,
 
     @Column(name = "payment_gateway", nullable = false)
     var paymentGateway: String = "",

@@ -6,13 +6,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 
 class CouponTemplateTest {
 
     private fun activeTemplate(issued: Int = 0, total: Int = 10): CouponTemplate =
         CouponTemplate(
-            id = UUID.randomUUID(),
             title = "테스트 쿠폰",
             type = CouponType.AMOUNT,
             value = BigDecimal("1000"),

@@ -6,17 +6,19 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
-import java.util.UUID
 
 @Entity
 @Table(name = "products")
-data class Product(
+class Product(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
     @Column(nullable = false)
     var name: String = "",
@@ -34,11 +36,11 @@ data class Product(
     @Column(nullable = false, length = 32)
     var status: ProductStatus = ProductStatus.ON_SALE,
 
-    @Column(name = "seller_id", columnDefinition = "BINARY(16)", nullable = false)
-    var sellerId: UUID = UUID(0L, 0L),
+    @Column(name = "seller_id", columnDefinition = "BIGINT", nullable = false)
+    var sellerId: Long = 0,
 
-    @Column(name = "category_id", columnDefinition = "BINARY(16)", nullable = false)
-    var categoryId: UUID = UUID(0L, 0L),
+    @Column(name = "category_id", columnDefinition = "BIGINT", nullable = false)
+    var categoryId: Long = 0,
 
     @Column(name = "price_amount", precision = 19, scale = 2, nullable = false)
     var price: Money = Money.ZERO,
@@ -74,4 +76,37 @@ data class Product(
         } ?: price
 
     fun hasDiscount(): Boolean = discountRate != null
+
+    fun copy(
+        id: Long = this.id,
+        name: String = this.name,
+        code: ProductCode = this.code,
+        description: String? = this.description,
+        content: String? = this.content,
+        status: ProductStatus = this.status,
+        sellerId: Long = this.sellerId,
+        categoryId: Long = this.categoryId,
+        price: Money = this.price,
+        discountRate: Percentage? = this.discountRate,
+        version: Int = this.version,
+        viewCount: Int = this.viewCount,
+        salesCount: Int = this.salesCount,
+        createdAt: LocalDate = this.createdAt,
+    ): Product =
+        Product(
+            id = id,
+            name = name,
+            code = code,
+            description = description,
+            content = content,
+            status = status,
+            sellerId = sellerId,
+            categoryId = categoryId,
+            price = price,
+            discountRate = discountRate,
+            version = version,
+            viewCount = viewCount,
+            salesCount = salesCount,
+            createdAt = createdAt,
+        )
 }

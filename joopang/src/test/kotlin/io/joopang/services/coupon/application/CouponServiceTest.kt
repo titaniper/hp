@@ -5,52 +5,40 @@ import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.PasswordHash
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponStatus
-import io.joopang.services.coupon.infrastructure.CouponLockManagerImpl
+import io.joopang.services.coupon.domain.CouponTemplate
+import io.joopang.services.coupon.domain.CouponTemplateStatus
+import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.domain.User
 import io.joopang.services.user.infrastructure.UserRepository
+import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.annotation.DirtiesContext
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.UUID
 
-class CouponServiceTest {
+@SpringBootTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+class CouponServiceTest @Autowired constructor(
+    private val couponService: CouponService,
+    private val couponRepository: CouponRepository,
+    private val couponTemplateRepository: CouponTemplateRepository,
+    private val userRepository: UserRepository,
+) : IntegrationTestSupport() {
 
-    private lateinit var couponRepository: CouponRepository
-    private lateinit var couponTemplateRepository: CouponTemplateRepository
-    private lateinit var userRepository: UserRepository
-    private lateinit var couponService: CouponService
-
-    private val templateId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-    private lateinit var userId: UUID
+    private var templateId: Long = 0
+    private var userId: Long = 0
 
     @BeforeEach
     fun setUp() {
-        couponRepository = CouponRepository()
-        couponTemplateRepository = CouponTemplateRepository()
-        userRepository = UserRepository()
-
-        userId = UUID.randomUUID()
-        userRepository.save(
-            User(
-                id = userId,
-                email = Email("tester@joopang.com"),
-                password = PasswordHash("hash22222222222"),
-                firstName = "Tester",
-                lastName = "User",
-                balance = Money.of(100_000L),
-            ),
-        )
-        couponService = CouponService(
-            couponRepository = couponRepository,
-            couponTemplateRepository = couponTemplateRepository,
-            userRepository = userRepository,
-            couponLockManager = CouponLockManagerImpl(),
-        )
+        templateId = createTemplate()
+        userId = createUser()
     }
 
     @Test
@@ -62,29 +50,59 @@ class CouponServiceTest {
             ),
         )
 
-        assertThat(result.userCouponId).isNotNull()
-        assertThat(couponRepository.findById(result.userCouponId)).isNotNull
+        assertThat(result.coupon.id).isNotNull()
+        assertThat(couponRepository.findById(result.coupon.id)).isNotNull
     }
 
     @Test
     fun `getUserCoupons marks expired coupons`() {
-        val expiredCoupon = Coupon(
-            id = UUID.randomUUID(),
-            userId = userId,
-            couponTemplateId = templateId,
-            type = couponTemplateRepository.findById(templateId)!!.type,
-            value = BigDecimal("0.10"),
-            status = CouponStatus.AVAILABLE,
-            issuedAt = Instant.now().minus(10, ChronoUnit.DAYS),
-            expiredAt = Instant.now().minus(1, ChronoUnit.DAYS),
+        val expiredCoupon = couponRepository.save(
+            Coupon(
+                userId = userId,
+                couponTemplateId = templateId,
+                type = couponTemplateRepository.findById(templateId)!!.type,
+                value = BigDecimal("0.10"),
+                status = CouponStatus.AVAILABLE,
+                issuedAt = Instant.now().minus(10, ChronoUnit.DAYS),
+                expiredAt = Instant.now().minus(1, ChronoUnit.DAYS),
+            ),
         )
-        couponRepository.save(expiredCoupon)
+        val expiredCouponId = expiredCoupon.id
 
         val results = couponService.getUserCoupons(userId)
 
-        val updated = couponRepository.findById(expiredCoupon.id)!!
+        val updated = couponRepository.findById(expiredCouponId)!!
         assertThat(updated.status).isEqualTo(CouponStatus.EXPIRED)
-        assertThat(results.first { it.couponId == expiredCoupon.id }.status)
+        assertThat(results.first { it.id == expiredCouponId }.status)
             .isEqualTo(CouponStatus.EXPIRED)
+    }
+
+    private fun createTemplate(): Long {
+        val template = CouponTemplate(
+            title = "테스트 쿠폰",
+            type = CouponType.AMOUNT,
+            value = BigDecimal("5000"),
+            status = CouponTemplateStatus.ACTIVE,
+            minAmount = Money.of(10_000L),
+            maxDiscountAmount = null,
+            totalQuantity = 10,
+            issuedQuantity = 0,
+            limitQuantity = 2,
+            startAt = Instant.now().minusSeconds(60),
+            endAt = Instant.now().plusSeconds(3600),
+        )
+        return couponTemplateRepository.save(template).id
+    }
+
+    private fun createUser(): Long {
+        val user = User(
+            id = 0,
+            email = Email("tester-${System.nanoTime()}@joopang.com"),
+            password = PasswordHash("hash-${System.nanoTime()}"),
+            firstName = "Tester",
+            lastName = "User",
+            balance = Money.of(100_000L),
+        )
+        return userRepository.save(user).id
     }
 }

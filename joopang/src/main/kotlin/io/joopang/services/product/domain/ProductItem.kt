@@ -6,9 +6,10 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import java.util.UUID
 
 @Entity
 @Table(
@@ -20,13 +21,14 @@ import java.util.UUID
         ),
     ],
 )
-data class ProductItem(
+class ProductItem(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
-    @Column(name = "product_id", columnDefinition = "BINARY(16)", nullable = false)
-    var productId: UUID = UUID(0L, 0L),
+    @Column(name = "product_id", columnDefinition = "BIGINT", nullable = false)
+    var productId: Long? = null,
 
     @Column(nullable = false)
     var name: String = "",
@@ -53,4 +55,25 @@ data class ProductItem(
     }
 
     fun isActive(): Boolean = status == ProductItemStatus.ACTIVE
+
+    fun copy(
+        id: Long = this.id,
+        productId: Long? = this.productId,
+        name: String = this.name,
+        unitPrice: Money = this.unitPrice,
+        description: String? = this.description,
+        stock: StockQuantity = this.stock,
+        status: ProductItemStatus = this.status,
+        code: ProductItemCode = this.code,
+    ): ProductItem =
+        ProductItem(
+            id = id,
+            productId = productId,
+            name = name,
+            unitPrice = unitPrice,
+            description = description,
+            stock = stock,
+            status = status,
+            code = code,
+        )
 }

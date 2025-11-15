@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -17,10 +16,10 @@ open class CategoryRepository(
         entityManager.createQuery("select c from Category c", Category::class.java)
             .resultList
 
-    open fun findById(id: UUID): Category? =
+    open fun findById(id: Long): Category? =
         entityManager.find(Category::class.java, id)
 
-    open fun findByParentId(parentId: UUID?): List<Category> =
+    open fun findByParentId(parentId: Long?): List<Category> =
         if (parentId == null) {
             entityManager.createQuery(
                 "select c from Category c where c.parentId is null",

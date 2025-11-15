@@ -5,18 +5,20 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 
 @Entity
 @Table(name = "coupon_templates")
-data class CouponTemplate(
+class CouponTemplate(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
     @Column(nullable = false)
     var title: String = "TEMPLATE",
@@ -80,4 +82,36 @@ data class CouponTemplate(
         require(remainingQuantity() > 0) { "No coupons remaining for template $id" }
         return copy(issuedQuantity = issuedQuantity + 1)
     }
+
+    @Suppress("unused") // Required by JPA
+    protected constructor() : this(0)
+
+    fun copy(
+        id: Long = this.id,
+        title: String = this.title,
+        type: CouponType = this.type,
+        value: BigDecimal = this.value,
+        status: CouponTemplateStatus = this.status,
+        minAmount: Money? = this.minAmount,
+        maxDiscountAmount: Money? = this.maxDiscountAmount,
+        totalQuantity: Int = this.totalQuantity,
+        issuedQuantity: Int = this.issuedQuantity,
+        limitQuantity: Int = this.limitQuantity,
+        startAt: Instant? = this.startAt,
+        endAt: Instant? = this.endAt,
+    ): CouponTemplate =
+        CouponTemplate(
+            id = id,
+            title = title,
+            type = type,
+            value = value,
+            status = status,
+            minAmount = minAmount,
+            maxDiscountAmount = maxDiscountAmount,
+            totalQuantity = totalQuantity,
+            issuedQuantity = issuedQuantity,
+            limitQuantity = limitQuantity,
+            startAt = startAt,
+            endAt = endAt,
+        )
 }

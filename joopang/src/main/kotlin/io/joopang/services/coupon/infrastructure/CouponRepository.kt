@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -13,10 +12,10 @@ open class CouponRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findById(couponId: UUID): Coupon? =
+    open fun findById(couponId: Long): Coupon? =
         entityManager.find(Coupon::class.java, couponId)
 
-    open fun findUserCoupons(userId: UUID): List<Coupon> =
+    open fun findUserCoupons(userId: Long): List<Coupon> =
         entityManager.createQuery(
             "select c from Coupon c where c.userId = :userId",
             Coupon::class.java,
@@ -24,7 +23,7 @@ open class CouponRepository(
             .setParameter("userId", userId)
             .resultList
 
-    open fun findUserCoupon(userId: UUID, couponId: UUID): Coupon? =
+    open fun findUserCoupon(userId: Long, couponId: Long): Coupon? =
         entityManager.createQuery(
             "select c from Coupon c where c.id = :couponId and c.userId = :userId",
             Coupon::class.java,
@@ -34,7 +33,7 @@ open class CouponRepository(
             .resultList
             .firstOrNull()
 
-    open fun findUserCouponByTemplate(userId: UUID, couponTemplateId: UUID): Coupon? =
+    open fun findUserCouponByTemplate(userId: Long, couponTemplateId: Long): Coupon? =
         entityManager.createQuery(
             "select c from Coupon c where c.userId = :userId and c.couponTemplateId = :templateId",
             Coupon::class.java,

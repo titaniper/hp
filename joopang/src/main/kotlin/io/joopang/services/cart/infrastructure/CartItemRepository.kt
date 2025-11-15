@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -13,7 +12,7 @@ open class CartItemRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findByUserId(userId: UUID): List<CartItem> =
+    open fun findByUserId(userId: Long): List<CartItem> =
         entityManager.createQuery(
             "select c from CartItem c where c.userId = :userId",
             CartItem::class.java,
@@ -21,10 +20,10 @@ open class CartItemRepository(
             .setParameter("userId", userId)
             .resultList
 
-    open fun findById(cartItemId: UUID): CartItem? =
+    open fun findById(cartItemId: Long): CartItem? =
         entityManager.find(CartItem::class.java, cartItemId)
 
-    open fun findByUserIdAndProductItemId(userId: UUID, productItemId: UUID): CartItem? =
+    open fun findByUserIdAndProductItemId(userId: Long, productItemId: Long): CartItem? =
         entityManager.createQuery(
             "select c from CartItem c where c.userId = :userId and c.productItemId = :productItemId",
             CartItem::class.java,
@@ -39,13 +38,13 @@ open class CartItemRepository(
         entityManager.merge(cartItem)
 
     @Transactional
-    open fun delete(cartItemId: UUID) {
+    open fun delete(cartItemId: Long) {
         val entity = entityManager.find(CartItem::class.java, cartItemId) ?: return
         entityManager.remove(entity)
     }
 
     @Transactional
-    open fun deleteByUserId(userId: UUID) {
+    open fun deleteByUserId(userId: Long) {
         entityManager.createQuery("delete from CartItem c where c.userId = :userId")
             .setParameter("userId", userId)
             .executeUpdate()

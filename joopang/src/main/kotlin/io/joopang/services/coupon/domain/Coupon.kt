@@ -4,12 +4,13 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 
 @Entity
 @Table(
@@ -21,16 +22,17 @@ import java.util.UUID
         ),
     ],
 )
-data class Coupon(
+class Coupon(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
-    @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false)
-    var userId: UUID = UUID(0L, 0L),
+    @Column(name = "user_id", columnDefinition = "BIGINT", nullable = false)
+    var userId: Long = 0,
 
-    @Column(name = "coupon_template_id", columnDefinition = "BINARY(16)")
-    var couponTemplateId: UUID? = null,
+    @Column(name = "coupon_template_id", columnDefinition = "BIGINT")
+    var couponTemplateId: Long? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -52,8 +54,8 @@ data class Coupon(
     @Column(name = "expired_at")
     var expiredAt: Instant? = null,
 
-    @Column(name = "order_id", columnDefinition = "BINARY(16)")
-    var orderId: UUID? = null,
+    @Column(name = "order_id", columnDefinition = "BIGINT")
+    var orderId: Long? = null,
 ) {
 
     init {
@@ -68,7 +70,7 @@ data class Coupon(
     fun isAvailable(referenceTime: Instant = Instant.now()): Boolean =
         status == CouponStatus.AVAILABLE && !isExpired(referenceTime)
 
-    fun markUsed(orderId: UUID, usedAt: Instant = Instant.now()): Coupon =
+    fun markUsed(orderId: Long, usedAt: Instant = Instant.now()): Coupon =
         copy(
             status = CouponStatus.USED,
             usedAt = usedAt,
@@ -77,4 +79,29 @@ data class Coupon(
 
     fun expire(): Coupon =
         if (status == CouponStatus.EXPIRED) this else copy(status = CouponStatus.EXPIRED)
+
+    fun copy(
+        id: Long = this.id,
+        userId: Long = this.userId,
+        couponTemplateId: Long? = this.couponTemplateId,
+        type: CouponType = this.type,
+        value: BigDecimal = this.value,
+        status: CouponStatus = this.status,
+        issuedAt: Instant = this.issuedAt,
+        usedAt: Instant? = this.usedAt,
+        expiredAt: Instant? = this.expiredAt,
+        orderId: Long? = this.orderId,
+    ): Coupon =
+        Coupon(
+            id = id,
+            userId = userId,
+            couponTemplateId = couponTemplateId,
+            type = type,
+            value = value,
+            status = status,
+            issuedAt = issuedAt,
+            usedAt = usedAt,
+            expiredAt = expiredAt,
+            orderId = orderId,
+        )
 }

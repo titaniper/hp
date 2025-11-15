@@ -6,9 +6,10 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import java.util.UUID
 
 @Entity
 @Table(
@@ -20,26 +21,27 @@ import java.util.UUID
         ),
     ],
 )
-data class OrderDiscount(
+class OrderDiscount(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
-    @Column(name = "order_id", columnDefinition = "BINARY(16)", nullable = false)
-    var orderId: UUID = UUID(0L, 0L),
+    @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
+    var orderId: Long? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     var type: OrderDiscountType = OrderDiscountType.POINT,
 
-    @Column(name = "reference_id", columnDefinition = "BINARY(16)")
-    var referenceId: UUID? = null,
+    @Column(name = "reference_id", columnDefinition = "BIGINT")
+    var referenceId: Long? = null,
 
     @Column(name = "price", precision = 19, scale = 2, nullable = false)
     var price: Money = Money.ZERO,
 
-    @Column(name = "coupon_id", columnDefinition = "BINARY(16)")
-    var couponId: UUID? = null,
+    @Column(name = "coupon_id", columnDefinition = "BIGINT")
+    var couponId: Long? = null,
 ) {
 
     init {

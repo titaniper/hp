@@ -1,7 +1,6 @@
 package io.joopang.services.order.domain
 
 import io.joopang.services.common.domain.Money
-import java.util.UUID
 
 data class OrderAggregate(
     val order: Order,

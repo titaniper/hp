@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -13,7 +12,7 @@ open class UserRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun findById(userId: UUID): User? =
+    open fun findById(userId: Long): User? =
         entityManager.find(User::class.java, userId)
 
     open fun findAll(): List<User> =

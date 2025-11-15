@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -17,10 +16,10 @@ open class DeliveryRepository(
         entityManager.createQuery("select d from Delivery d", Delivery::class.java)
             .resultList
 
-    open fun findById(id: UUID): Delivery? =
+    open fun findById(id: Long): Delivery? =
         entityManager.find(Delivery::class.java, id)
 
-    open fun findByOrderItemId(orderItemId: UUID): List<Delivery> =
+    open fun findByOrderItemId(orderItemId: Long): List<Delivery> =
         entityManager.createQuery(
             "select d from Delivery d where d.orderItemId = :orderItemId",
             Delivery::class.java,

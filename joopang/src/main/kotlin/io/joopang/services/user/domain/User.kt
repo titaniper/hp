@@ -5,16 +5,18 @@ import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.PasswordHash
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import java.util.UUID
 
 @Entity
 @Table(name = "users")
-data class User(
+class User(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
     @Column(nullable = false, unique = true, length = 191)
     var email: Email = Email("default@example.com"),
@@ -47,4 +49,21 @@ data class User(
         }
         return copy(balance = balance - amount)
     }
+
+    fun copy(
+        id: Long = this.id,
+        email: Email = this.email,
+        password: PasswordHash = this.password,
+        firstName: String? = this.firstName,
+        lastName: String? = this.lastName,
+        balance: Money = this.balance,
+    ): User =
+        User(
+            id = id,
+            email = email,
+            password = password,
+            firstName = firstName,
+            lastName = lastName,
+            balance = balance,
+        )
 }

@@ -7,15 +7,14 @@ import jakarta.persistence.IdClass
 import jakarta.persistence.Table
 import java.io.Serializable
 import java.time.LocalDate
-import java.util.UUID
 
 @Entity
 @Table(name = "product_daily_sales")
 @IdClass(DailySaleId::class)
-data class DailySale(
+class DailySale(
     @Id
-    @Column(name = "product_id", columnDefinition = "BINARY(16)")
-    var productId: UUID = UUID(0L, 0L),
+    @Column(name = "product_id", columnDefinition = "BIGINT")
+    var productId: Long = 0,
 
     @Id
     @Column(name = "sale_date")
@@ -26,6 +25,6 @@ data class DailySale(
 )
 
 data class DailySaleId(
-    var productId: UUID? = null,
+    var productId: Long? = null,
     var date: LocalDate? = null,
 ) : Serializable

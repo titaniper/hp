@@ -3,7 +3,6 @@ package io.joopang.services.order.application
 import io.joopang.services.common.domain.Money
 import io.joopang.support.IntegrationTestSupport
 import io.joopang.services.order.infrastructure.OrderRepository
-import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -27,9 +25,9 @@ class OrderServiceIntegrationTest @Autowired constructor(
     private val orderRepository: OrderRepository,
 ) : IntegrationTestSupport() {
 
-    private val userId = UUID.fromString("aaaaaaaa-1111-2222-3333-444444444444")
-    private val productId = UUID.fromString("11111111-1111-1111-1111-111111111111")
-    private val productItemId = UUID.fromString("21111111-1111-1111-1111-111111111111")
+    private val userId = 100L
+    private val productId = 400L
+    private val productItemId = 500L
 
     @BeforeEach
     fun prepareFixtures() {
@@ -54,14 +52,14 @@ class OrderServiceIntegrationTest @Autowired constructor(
         val startLatch = CountDownLatch(1)
         val doneLatch = CountDownLatch(threads)
 
-        val successes = java.util.Collections.synchronizedList(mutableListOf<UUID>())
+        val successes = java.util.Collections.synchronizedList(mutableListOf<Long>())
         val failures = java.util.Collections.synchronizedList(mutableListOf<Throwable>())
 
         repeat(threads) {
             executor.execute {
                 try {
                     startLatch.await()
-                    val aggregate = orderService.createOrder(
+                    val result = orderService.createOrder(
                         OrderService.CreateOrderCommand(
                             userId = userId,
                             recipientName = "동시주문",
@@ -74,7 +72,7 @@ class OrderServiceIntegrationTest @Autowired constructor(
                             ),
                         ),
                     )
-                    successes += aggregate.order.id
+                    successes += result.orderId
                 } catch (ex: Exception) {
                     failures += ex
                 } finally {

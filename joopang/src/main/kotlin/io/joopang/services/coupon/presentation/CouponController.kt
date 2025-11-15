@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api")
@@ -21,7 +20,7 @@ class CouponController(
 
     @PostMapping("/coupons/{templateId}/issue")
     fun issueCoupon(
-        @PathVariable("templateId") couponTemplateId: UUID,
+        @PathVariable("templateId") couponTemplateId: Long,
         @RequestBody request: CouponIssueRequest,
     ): CouponIssueResponse =
         couponService
@@ -35,7 +34,7 @@ class CouponController(
 
     @GetMapping("/users/{userId}/coupons")
     fun getUserCoupons(
-        @PathVariable userId: UUID,
+        @PathVariable userId: Long,
     ): List<UserCouponResponse> =
         couponService
             .getUserCoupons(userId)
@@ -68,12 +67,12 @@ class CouponController(
 }
 
 data class CouponIssueRequest(
-    val userId: UUID,
+    val userId: Long,
 )
 
 data class CouponIssueResponse(
-    val userCouponId: UUID,
-    val couponTemplateId: UUID?,
+    val userCouponId: Long,
+    val couponTemplateId: Long?,
     val type: CouponType,
     val value: BigDecimal,
     val status: CouponStatus,
@@ -83,13 +82,13 @@ data class CouponIssueResponse(
 )
 
 data class UserCouponResponse(
-    val couponId: UUID,
-    val couponTemplateId: UUID?,
+    val couponId: Long,
+    val couponTemplateId: Long?,
     val type: CouponType,
     val value: BigDecimal,
     val status: CouponStatus,
     val issuedAt: Instant,
     val expiredAt: Instant?,
     val usedAt: Instant?,
-    val orderId: UUID?,
+    val orderId: Long?,
 )

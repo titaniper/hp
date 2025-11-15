@@ -6,14 +6,12 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.time.Instant
-import java.util.UUID
 
 class OrderTest {
 
     private fun order(total: Money = Money.of(10_000L), discount: Money = Money.of(1_000L)) =
         Order(
-            id = UUID.randomUUID(),
-            userId = UUID.randomUUID(),
+            userId = 1L,
             imageUrl = null,
             status = OrderStatus.PENDING,
             recipientName = "고객",

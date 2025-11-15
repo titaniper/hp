@@ -4,16 +4,18 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import java.util.UUID
 
 @Entity
 @Table(name = "sellers")
-data class Seller(
+class Seller(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
     @Column(nullable = false)
     var name: String = "",
@@ -22,10 +24,12 @@ data class Seller(
     @Column(nullable = false, length = 32)
     var type: SellerType = SellerType.BRAND,
 
-    @Column(name = "owner_id", columnDefinition = "BINARY(16)", nullable = false)
-    var ownerId: UUID = UUID(0L, 0L),
+    @Column(name = "owner_id", columnDefinition = "BIGINT", nullable = false)
+    var ownerId: Long = 0,
 ) {
     init {
-        require(name.isNotBlank()) { "Seller name must not be blank" }
+        if (ownerId != 0L || name.isNotBlank()) {
+            require(name.isNotBlank()) { "Seller name must not be blank" }
+        }
     }
 }

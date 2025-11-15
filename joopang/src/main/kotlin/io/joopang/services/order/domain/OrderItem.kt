@@ -5,9 +5,10 @@ import io.joopang.services.common.domain.Quantity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
-import java.util.UUID
 
 @Entity
 @Table(
@@ -23,19 +24,20 @@ import java.util.UUID
         ),
     ],
 )
-data class OrderItem(
+class OrderItem(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
-    @Column(name = "order_id", columnDefinition = "BINARY(16)", nullable = false)
-    var orderId: UUID = UUID(0L, 0L),
+    @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
+    var orderId: Long? = null,
 
-    @Column(name = "product_id", columnDefinition = "BINARY(16)")
-    var productId: UUID? = null,
+    @Column(name = "product_id", columnDefinition = "BIGINT")
+    var productId: Long? = null,
 
-    @Column(name = "product_item_id", columnDefinition = "BINARY(16)")
-    var productItemId: UUID? = null,
+    @Column(name = "product_item_id", columnDefinition = "BIGINT")
+    var productItemId: Long? = null,
 
     @Column(name = "product_name", nullable = false)
     var productName: String = "",
@@ -70,4 +72,29 @@ data class OrderItem(
     fun expectedSubtotal(): Money = unitPrice * quantity.value
 
     fun refundableQuantity(): Quantity = Quantity(quantity.value - refundedQuantity.value)
+
+    fun copy(
+        id: Long = this.id,
+        orderId: Long? = this.orderId,
+        productId: Long? = this.productId,
+        productItemId: Long? = this.productItemId,
+        productName: String = this.productName,
+        quantity: Quantity = this.quantity,
+        unitPrice: Money = this.unitPrice,
+        subtotal: Money = this.subtotal,
+        refundedAmount: Money = this.refundedAmount,
+        refundedQuantity: Quantity = this.refundedQuantity,
+    ): OrderItem =
+        OrderItem(
+            id = id,
+            orderId = orderId,
+            productId = productId,
+            productItemId = productItemId,
+            productName = productName,
+            quantity = quantity,
+            unitPrice = unitPrice,
+            subtotal = subtotal,
+            refundedAmount = refundedAmount,
+            refundedQuantity = refundedQuantity,
+        )
 }

@@ -9,7 +9,6 @@ import io.joopang.services.payment.infrastructure.PaymentRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
-import java.util.UUID
 
 @Service
 @Transactional(readOnly = true)
@@ -17,14 +16,14 @@ class PaymentService(
     private val paymentRepository: PaymentRepository,
 ) {
 
-    fun listPayments(orderId: UUID?): List<Output> =
+    fun listPayments(orderId: Long?): List<Output> =
         if (orderId == null) {
             paymentRepository.findAll()
         } else {
             paymentRepository.findByOrderId(orderId)
         }.map { it.toOutput() }
 
-    fun getPayment(id: UUID): Output =
+    fun getPayment(id: Long): Output =
         paymentRepository.findById(id)
             ?.toOutput()
             ?: throw PaymentNotFoundException(id.toString())
@@ -32,7 +31,7 @@ class PaymentService(
     @Transactional
     fun registerPayment(command: RegisterPaymentCommand): Output {
         val payment = Payment(
-            id = command.id ?: UUID.randomUUID(),
+            id = command.id ?: 0,
             orderId = command.orderId,
             paymentGateway = command.paymentGateway,
             paymentMethod = command.paymentMethod,
@@ -65,7 +64,7 @@ class PaymentService(
         )
 
     data class RegisterPaymentCommand(
-        val orderId: UUID,
+        val orderId: Long,
         val paymentGateway: String,
         val paymentMethod: PaymentMethod,
         val paymentAmount: Money,
@@ -76,12 +75,12 @@ class PaymentService(
         val requestedAt: Instant,
         val approvedAt: Instant?,
         val cancelledAt: Instant?,
-        val id: UUID? = null,
+        val id: Long? = null,
     )
 
     data class Output(
-        val id: UUID,
-        val orderId: UUID,
+        val id: Long,
+        val orderId: Long,
         val paymentGateway: String,
         val paymentMethod: PaymentMethod,
         val paymentAmount: Money,

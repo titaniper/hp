@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/sellers")
@@ -26,7 +25,7 @@ class SellerController(
 
     @GetMapping("/{id}")
     fun getSeller(
-        @PathVariable id: UUID,
+        @PathVariable id: Long,
     ): SellerResponse =
         sellerService
             .getSeller(id)
@@ -69,13 +68,13 @@ class SellerController(
 data class CreateSellerRequest(
     val name: String,
     val type: String,
-    val ownerId: UUID,
-    val id: UUID? = null,
+    val ownerId: Long,
+    val id: Long? = null,
 )
 
 data class SellerResponse(
-    val id: UUID,
+    val id: Long,
     val name: String,
     val type: String,
-    val ownerId: UUID,
+    val ownerId: Long,
 )

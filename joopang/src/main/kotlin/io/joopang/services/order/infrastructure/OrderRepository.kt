@@ -8,7 +8,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -16,27 +15,35 @@ open class OrderRepository(
     @PersistenceContext private val entityManager: EntityManager,
 ) {
 
-    open fun nextIdentity(): UUID = UUID.randomUUID()
-
     @Transactional
     open fun save(aggregate: OrderAggregate): OrderAggregate {
-        val existing = entityManager.find(Order::class.java, aggregate.order.id)
-        require(existing == null) { "Order with id ${aggregate.order.id} already exists" }
+        val order = aggregate.order
+        require(order.id == 0L) { "Order already has an id ${order.id}" }
 
-        entityManager.persist(aggregate.order)
-        aggregate.items.forEach(entityManager::persist)
-        aggregate.discounts.forEach(entityManager::persist)
+        entityManager.persist(order)
+        entityManager.flush()
+
+        val orderId = order.id
+        aggregate.items.forEach { item ->
+            item.orderId = orderId
+            entityManager.persist(item)
+        }
+        aggregate.discounts.forEach { discount ->
+            discount.orderId = orderId
+            entityManager.persist(discount)
+        }
         entityManager.flush()
 
         return aggregate
     }
 
-    open fun findById(orderId: UUID): OrderAggregate? {
+    open fun findById(orderId: Long): OrderAggregate? {
         val order = entityManager.find(Order::class.java, orderId) ?: return null
+        val id = order.id
         return OrderAggregate(
             order = order,
-            items = findItems(orderId),
-            discounts = findDiscounts(orderId),
+            items = findItems(id),
+            discounts = findDiscounts(id),
         )
     }
 
@@ -69,22 +76,29 @@ open class OrderRepository(
             ?: throw IllegalArgumentException("Order with id ${aggregate.order.id} does not exist")
 
         entityManager.merge(aggregate.order)
-        deleteItemsByOrderId(existing.id)
-        deleteDiscountsByOrderId(existing.id)
-        aggregate.items.forEach(entityManager::persist)
-        aggregate.discounts.forEach(entityManager::persist)
+        val orderId = existing.id
+        deleteItemsByOrderId(orderId)
+        deleteDiscountsByOrderId(orderId)
+        aggregate.items.forEach { item ->
+            item.orderId = orderId
+            entityManager.persist(item)
+        }
+        aggregate.discounts.forEach { discount ->
+            discount.orderId = orderId
+            entityManager.persist(discount)
+        }
         entityManager.flush()
 
         return aggregate
     }
 
-    private fun findItems(orderId: UUID): List<OrderItem> =
+    private fun findItems(orderId: Long): List<OrderItem> =
         findItemsByOrderIds(listOf(orderId))[orderId].orEmpty()
 
-    private fun findDiscounts(orderId: UUID): List<OrderDiscount> =
+    private fun findDiscounts(orderId: Long): List<OrderDiscount> =
         findDiscountsByOrderIds(listOf(orderId))[orderId].orEmpty()
 
-    private fun findItemsByOrderIds(orderIds: List<UUID>): Map<UUID, List<OrderItem>> {
+    private fun findItemsByOrderIds(orderIds: List<Long>): Map<Long, List<OrderItem>> {
         if (orderIds.isEmpty()) {
             return emptyMap()
         }
@@ -95,10 +109,10 @@ open class OrderRepository(
         )
             .setParameter("orderIds", orderIds)
             .resultList
-            .groupBy { it.orderId }
+            .groupBy { it.orderId as Long }
     }
 
-    private fun findDiscountsByOrderIds(orderIds: List<UUID>): Map<UUID, List<OrderDiscount>> {
+    private fun findDiscountsByOrderIds(orderIds: List<Long>): Map<Long, List<OrderDiscount>> {
         if (orderIds.isEmpty()) {
             return emptyMap()
         }
@@ -109,16 +123,16 @@ open class OrderRepository(
         )
             .setParameter("orderIds", orderIds)
             .resultList
-            .groupBy { it.orderId }
+            .groupBy { it.orderId as Long }
     }
 
-    private fun deleteItemsByOrderId(orderId: UUID) {
+    private fun deleteItemsByOrderId(orderId: Long) {
         entityManager.createQuery("delete from OrderItem i where i.orderId = :orderId")
             .setParameter("orderId", orderId)
             .executeUpdate()
     }
 
-    private fun deleteDiscountsByOrderId(orderId: UUID) {
+    private fun deleteDiscountsByOrderId(orderId: Long) {
         entityManager.createQuery("delete from OrderDiscount d where d.orderId = :orderId")
             .setParameter("orderId", orderId)
             .executeUpdate()

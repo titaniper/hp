@@ -4,20 +4,18 @@ import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Percentage
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import java.util.UUID
 
 class ProductTest {
 
     private fun product(discountRate: Percentage? = Percentage.of(10.0)) =
         Product(
-            id = UUID.randomUUID(),
             name = "상품",
             code = ProductCode("CODE"),
             description = "desc",
             content = null,
             status = ProductStatus.ON_SALE,
-            sellerId = UUID.randomUUID(),
-            categoryId = UUID.randomUUID(),
+            sellerId = 1L,
+            categoryId = 2L,
             price = Money.of(10_000L),
             discountRate = discountRate,
             version = 1,

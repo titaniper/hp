@@ -3,10 +3,30 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     alias(libs.plugins.kotlin.jvm)                     
     alias(libs.plugins.kotlin.spring)                  
-    alias(libs.plugins.kotlin.jpa)
+    alias(libs.plugins.kotlin.allopen)
+    alias(libs.plugins.kotlin.noarg)
     alias(libs.plugins.spring.boot)                    
     alias(libs.plugins.spring.dependency.management)   
     id("jacoco")                                       
+}
+
+allOpen {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.Embeddable")
+    annotation("jakarta.persistence.MappedSuperclass")
+    annotation("javax.persistence.Entity")
+    annotation("javax.persistence.Embeddable")
+    annotation("javax.persistence.MappedSuperclass")
+}
+
+noArg {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.Embeddable")
+    annotation("jakarta.persistence.MappedSuperclass")
+    annotation("javax.persistence.Entity")
+    annotation("javax.persistence.Embeddable")
+    annotation("javax.persistence.MappedSuperclass")
+    invokeInitializers = false
 }
 
 allprojects {

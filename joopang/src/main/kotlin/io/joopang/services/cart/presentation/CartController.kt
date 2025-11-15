@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/carts")
@@ -23,7 +22,7 @@ class CartController(
 
     @GetMapping("/current")
     fun getCurrentCart(
-        @RequestParam userId: UUID,
+        @RequestParam userId: Long,
     ): CartResponse =
         cartService
             .getCart(userId)
@@ -65,8 +64,8 @@ class CartController(
 
     @DeleteMapping("/current/items/{cartItemId}")
     fun deleteCartItem(
-        @PathVariable cartItemId: UUID,
-        @RequestParam userId: UUID,
+        @PathVariable cartItemId: Long,
+        @RequestParam userId: Long,
     ): CartResponse =
         cartService
             .removeItem(
@@ -117,28 +116,28 @@ class CartController(
 }
 
 data class UpsertCartItemRequest(
-    val userId: UUID,
-    val productId: UUID?,
-    val productItemId: UUID?,
+    val userId: Long,
+    val productId: Long?,
+    val productItemId: Long?,
     val quantity: Int,
-    val cartItemId: UUID?,
+    val cartItemId: Long?,
 )
 
 data class MergeCartRequest(
-    val sourceUserId: UUID,
-    val targetUserId: UUID,
+    val sourceUserId: Long,
+    val targetUserId: Long,
 )
 
 data class CartResponse(
-    val userId: UUID,
+    val userId: Long,
     val items: List<CartItemResponse>,
     val totals: CartTotalsResponse,
 )
 
 data class CartItemResponse(
-    val cartItemId: UUID,
-    val productId: UUID,
-    val productItemId: UUID,
+    val cartItemId: Long?,
+    val productId: Long,
+    val productItemId: Long,
     val productName: String?,
     val productItemName: String?,
     val quantity: Int,

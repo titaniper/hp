@@ -5,7 +5,6 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -17,7 +16,7 @@ open class SellerRepository(
         entityManager.createQuery("select s from Seller s", Seller::class.java)
             .resultList
 
-    open fun findById(id: UUID): Seller? =
+    open fun findById(id: Long): Seller? =
         entityManager.find(Seller::class.java, id)
 
     @Transactional

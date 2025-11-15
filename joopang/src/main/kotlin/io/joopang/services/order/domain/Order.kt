@@ -9,10 +9,11 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Index
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
-import java.util.UUID
 
 @Entity
 @Table(
@@ -28,13 +29,14 @@ import java.util.UUID
         ),
     ],
 )
-data class Order(
+class Order(
     @Id
-    @Column(columnDefinition = "BINARY(16)")
-    var id: UUID = UUID(0L, 0L),
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
 
-    @Column(name = "user_id", columnDefinition = "BINARY(16)", nullable = false)
-    var userId: UUID = UUID(0L, 0L),
+    @Column(name = "user_id", columnDefinition = "BIGINT", nullable = false)
+    var userId: Long = 0,
 
     @Column(name = "image_url")
     var imageUrl: String? = null,
@@ -79,4 +81,31 @@ data class Order(
 
     fun markPaid(paidTimestamp: Instant): Order =
         copy(status = OrderStatus.PAID, paidAt = paidTimestamp)
+
+    fun copy(
+        id: Long = this.id,
+        userId: Long = this.userId,
+        imageUrl: String? = this.imageUrl,
+        status: OrderStatus = this.status,
+        recipientName: String = this.recipientName,
+        orderMonth: OrderMonth = this.orderMonth,
+        totalAmount: Money = this.totalAmount,
+        discountAmount: Money = this.discountAmount,
+        orderedAt: Instant = this.orderedAt,
+        paidAt: Instant? = this.paidAt,
+        memo: String? = this.memo,
+    ): Order =
+        Order(
+            id = id,
+            userId = userId,
+            imageUrl = imageUrl,
+            status = status,
+            recipientName = recipientName,
+            orderMonth = orderMonth,
+            totalAmount = totalAmount,
+            discountAmount = discountAmount,
+            orderedAt = orderedAt,
+            paidAt = paidAt,
+            memo = memo,
+        )
 }

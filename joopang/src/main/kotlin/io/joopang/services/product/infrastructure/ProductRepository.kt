@@ -12,11 +12,9 @@ import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.math.BigInteger
-import java.nio.ByteBuffer
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
-import java.util.UUID
 
 @Repository
 @Transactional(readOnly = true)
@@ -27,14 +25,16 @@ open class ProductRepository(
     open fun findAll(): List<ProductWithItems> =
         entityManager.createQuery("select p from Product p", Product::class.java)
             .resultList
-            .map { product -> ProductWithItems(product, findItems(product.id)) }
+            .map { product ->
+                ProductWithItems(product, findItems(product.id))
+            }
 
-    open fun findById(productId: UUID): ProductWithItems? {
+    open fun findById(productId: Long): ProductWithItems? {
         val product = entityManager.find(Product::class.java, productId) ?: return null
-        return ProductWithItems(product, findItems(productId))
+        return ProductWithItems(product, findItems(product.id))
     }
 
-    open fun findProducts(categoryId: UUID?, sort: ProductSort): List<ProductWithItems> {
+    open fun findProducts(categoryId: Long?, sort: ProductSort): List<ProductWithItems> {
         val jpql = buildString {
             append("select p from Product p")
             if (categoryId != null) {
@@ -67,7 +67,7 @@ open class ProductRepository(
         }
     }
 
-    open fun findProductsByIds(productIds: List<UUID>): List<ProductWithItems> {
+    open fun findProductsByIds(productIds: List<Long>): List<ProductWithItems> {
         if (productIds.isEmpty()) {
             return emptyList()
         }
@@ -85,10 +85,10 @@ open class ProductRepository(
         }
     }
 
-    open fun findProductCreatedAt(productId: UUID): LocalDate? =
+    open fun findProductCreatedAt(productId: Long): LocalDate? =
         entityManager.find(Product::class.java, productId)?.createdAt
 
-    open fun findDailySales(productId: UUID): List<DailySale> =
+    open fun findDailySales(productId: Long): List<DailySale> =
         entityManager.createQuery(
             "select s from DailySale s where s.productId = :productId order by s.date",
             DailySale::class.java,
@@ -122,7 +122,7 @@ open class ProductRepository(
 
         return rows.map { columns ->
             PopularProductRow(
-                productId = columns[0].toUuid(),
+                productId = columns[0].toId(),
                 name = columns[1].toString(),
                 salesCount = columns[2].toLongValue(),
                 revenue = Money.of(columns[3] as BigDecimal),
@@ -132,10 +132,17 @@ open class ProductRepository(
 
     @Transactional
     open fun save(aggregate: ProductWithItems): ProductWithItems {
-        entityManager.persist(aggregate.product)
-        aggregate.items.forEach(entityManager::persist)
+        val product = aggregate.product
+        entityManager.persist(product)
         entityManager.flush()
-        return ProductWithItems(aggregate.product, findItems(aggregate.product.id))
+
+        val productId = product.id ?: throw IllegalStateException("Failed to generate product id")
+        aggregate.items.forEach { item ->
+            item.productId = productId
+            entityManager.persist(item)
+        }
+        entityManager.flush()
+        return ProductWithItems(product, findItems(productId))
     }
 
     @Transactional
@@ -144,21 +151,25 @@ open class ProductRepository(
             ?: throw IllegalArgumentException("Product with id ${aggregate.product.id} not found")
 
         entityManager.merge(aggregate.product)
-        deleteItemsByProductId(existing.id)
-        aggregate.items.forEach(entityManager::persist)
+        val productId = existing.id ?: throw IllegalStateException("Product id is null")
+        deleteItemsByProductId(productId)
+        aggregate.items.forEach { item ->
+            item.productId = productId
+            entityManager.persist(item)
+        }
         entityManager.flush()
 
-        return ProductWithItems(aggregate.product, findItems(existing.id))
+        return ProductWithItems(aggregate.product, findItems(productId))
     }
 
     data class PopularProductRow(
-        val productId: UUID,
+        val productId: Long,
         val name: String,
         val salesCount: Long,
         val revenue: Money,
     )
 
-    private fun findItems(productId: UUID): List<ProductItem> =
+    private fun findItems(productId: Long): List<ProductItem> =
         entityManager.createQuery(
             "select i from ProductItem i where i.productId = :productId",
             ProductItem::class.java,
@@ -166,7 +177,7 @@ open class ProductRepository(
             .setParameter("productId", productId)
             .resultList
 
-    private fun findItemsByProductIds(productIds: List<UUID>): Map<UUID, List<ProductItem>> {
+    private fun findItemsByProductIds(productIds: List<Long>): Map<Long, List<ProductItem>> {
         if (productIds.isEmpty()) {
             return emptyMap()
         }
@@ -177,10 +188,10 @@ open class ProductRepository(
         )
             .setParameter("productIds", productIds)
             .resultList
-            .groupBy { it.productId }
+            .groupBy { it.productId as Long }
     }
 
-    private fun deleteItemsByProductId(productId: UUID) {
+    private fun deleteItemsByProductId(productId: Long) {
         entityManager.createQuery("delete from ProductItem i where i.productId = :productId")
             .setParameter("productId", productId)
             .executeUpdate()
@@ -194,13 +205,11 @@ open class ProductRepository(
         else -> error("Unsupported numeric type: ${this::class.simpleName}")
     }
 
-    private fun Any.toUuid(): UUID = when (this) {
-        is UUID -> this
-        is String -> UUID.fromString(this)
-        is ByteArray -> {
-            val buffer = ByteBuffer.wrap(this)
-            UUID(buffer.long, buffer.long)
-        }
-        else -> error("Unsupported UUID column type: ${this::class.simpleName}")
+    private fun Any.toId(): Long = when (this) {
+        is Long -> this
+        is Int -> this.toLong()
+        is BigInteger -> this.toLong()
+        is BigDecimal -> this.toLong()
+        else -> error("Unsupported id column type: ${this::class.simpleName}")
     }
 }

@@ -1,18 +1,17 @@
 package io.joopang.services.coupon.application
 
-import io.joopang.services.coupon.application.CouponLockManager
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponStatus
 import io.joopang.services.coupon.domain.CouponType
-import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
+import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.UUID
 
 @Service
 @Transactional(readOnly = true)
@@ -27,24 +26,26 @@ class CouponService(
     fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
+        val userId = user.id ?: throw IllegalStateException("User id is null")
 
         return couponLockManager.withTemplateLock(command.couponTemplateId) {
             val template = couponTemplateRepository.findById(command.couponTemplateId)
                 ?: throw IllegalStateException("쿠폰 템플릿을 찾을 수 없습니다")
+            val templateId = template.id ?: throw IllegalStateException("쿠폰 템플릿 ID가 없습니다")
 
             val now = Instant.now()
             if (!template.canIssue(now)) {
                 throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
             }
 
-            val existingCoupon = couponRepository.findUserCouponByTemplate(user.id, template.id)
+            val existingCoupon = couponRepository.findUserCouponByTemplate(userId, templateId)
                 ?.takeIf { it.status == CouponStatus.AVAILABLE }
             if (existingCoupon != null) {
                 throw IllegalStateException("이미 발급받은 쿠폰입니다")
             }
 
-            val userCoupons = couponRepository.findUserCoupons(user.id)
-            val issuedCount = userCoupons.count { it.couponTemplateId == template.id }
+            val userCoupons = couponRepository.findUserCoupons(userId)
+            val issuedCount = userCoupons.count { it.couponTemplateId == templateId }
             if (!template.canIssueForUser(issuedCount)) {
                 throw IllegalStateException("해당 쿠폰 템플릿은 이미 최대 발급 수량에 도달했습니다")
             }
@@ -54,9 +55,8 @@ class CouponService(
 
             val expiry = template.endAt ?: now.plus(7, ChronoUnit.DAYS)
             val coupon = Coupon(
-                id = UUID.randomUUID(),
-                userId = user.id,
-                couponTemplateId = template.id,
+                userId = userId,
+                couponTemplateId = templateId,
                 type = template.type,
                 value = template.value,
                 status = CouponStatus.AVAILABLE,
@@ -75,12 +75,13 @@ class CouponService(
     }
 
     @Transactional
-    fun getUserCoupons(userId: UUID): List<Output> {
+    fun getUserCoupons(userId: Long): List<Output> {
         val user = userRepository.findById(userId)
             ?: throw UserNotFoundException(userId.toString())
+        val persistedUserId = user.id ?: throw IllegalStateException("User id is null")
 
         val now = Instant.now()
-        return couponRepository.findUserCoupons(user.id)
+        return couponRepository.findUserCoupons(persistedUserId)
             .map { coupon ->
                 val shouldExpire = coupon.status == CouponStatus.AVAILABLE &&
                     coupon.expiredAt?.let { now.isAfter(it) } == true
@@ -109,8 +110,8 @@ class CouponService(
         )
 
     data class IssueCouponCommand(
-        val couponTemplateId: UUID,
-        val userId: UUID,
+        val couponTemplateId: Long,
+        val userId: Long,
     )
 
     data class IssueCouponOutput(
@@ -119,14 +120,14 @@ class CouponService(
     )
 
     data class Output(
-        val id: UUID,
-        val couponTemplateId: UUID?,
+        val id: Long,
+        val couponTemplateId: Long?,
         val type: CouponType,
-        val value: java.math.BigDecimal,
+        val value: BigDecimal,
         val status: CouponStatus,
         val issuedAt: Instant,
         val expiredAt: Instant?,
         val usedAt: Instant?,
-        val orderId: UUID?,
+        val orderId: Long?,
     )
 }
