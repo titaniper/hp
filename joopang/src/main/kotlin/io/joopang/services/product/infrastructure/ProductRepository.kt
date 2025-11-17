@@ -1,238 +1,272 @@
 package io.joopang.services.product.infrastructure
 
 import io.joopang.services.common.domain.Money
-import io.joopang.services.common.domain.Percentage
+import io.joopang.services.product.domain.DailySale
 import io.joopang.services.product.domain.Product
-import io.joopang.services.product.domain.ProductCode
 import io.joopang.services.product.domain.ProductItem
-import io.joopang.services.product.domain.ProductItemCode
-import io.joopang.services.product.domain.ProductItemStatus
-import io.joopang.services.product.domain.ProductStatus
+import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Repository
+import java.math.BigDecimal
+import java.math.BigInteger
+import java.sql.Timestamp
+import java.time.Instant
 import java.time.LocalDate
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 
 @Repository
-open class ProductRepository {
+class ProductRepository(
+    @PersistenceContext private val entityManager: EntityManager,
+) {
 
-    private val products = CopyOnWriteArrayList<Product>()
-    private val productItems = CopyOnWriteArrayList<ProductItem>()
-    private val productCreatedAt = ConcurrentHashMap<UUID, LocalDate>()
-    private val dailySales = ConcurrentHashMap<UUID, List<DailySale>>()
-
-    init {
-        seed()
-    }
-
-    open fun findAll(): List<ProductWithItems> =
-        products.map { product ->
-            ProductWithItems(product, items(product.id))
+    fun findAll(): List<ProductWithItems> {
+        val products = entityManager.createQuery("select p from Product p", Product::class.java)
+            .resultList
+        if (products.isEmpty()) {
+            return emptyList()
         }
 
-    open fun findById(productId: UUID): ProductWithItems? =
-        products.firstOrNull { it.id == productId }
-            ?.let { found ->
-                ProductWithItems(found, items(found.id))
+        val itemsByProductId = findItemsByProductIds(products.map { it.id })
+        return products.map { product ->
+            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+        }
+    }
+
+    fun findById(productId: Long): ProductWithItems? {
+        val product = entityManager.find(Product::class.java, productId) ?: return null
+        return ProductWithItems(product, findItems(product.id))
+    }
+
+    fun consumeStock(productItemId: Long, quantity: Long): Boolean =
+        entityManager.createNativeQuery(
+            """
+                update product_items
+                set stock = stock - :quantity
+                where id = :itemId and stock >= :quantity
+            """.trimIndent(),
+        )
+            .setParameter("quantity", quantity)
+            .setParameter("itemId", productItemId)
+            .executeUpdate() == 1
+
+    fun findProducts(categoryId: Long?, sort: ProductSort): List<ProductWithItems> {
+        val jpql = buildString {
+            append("select p from Product p")
+            if (categoryId != null) {
+                append(" where p.categoryId = :categoryId")
             }
-
-    open fun findProductCreatedAt(productId: UUID): LocalDate? = productCreatedAt[productId]
-
-    open fun findDailySales(productId: UUID): List<DailySale> =
-        dailySales[productId] ?: emptyList()
-
-    open fun save(aggregate: ProductWithItems): ProductWithItems {
-        require(products.none { it.id == aggregate.product.id }) {
-            "Product with id ${aggregate.product.id} already exists"
+            append(" order by ")
+            append(
+                when (sort) {
+                    ProductSort.NEWEST -> "p.createdAt desc"
+                    ProductSort.SALES -> "p.salesCount desc"
+                    ProductSort.PRICE_ASC -> "p.price asc"
+                    ProductSort.PRICE_DESC -> "p.price desc"
+                },
+            )
         }
-        products += aggregate.product
-        replaceItems(aggregate.product.id, aggregate.items)
-        productCreatedAt[aggregate.product.id] = LocalDate.now()
-        dailySales.putIfAbsent(aggregate.product.id, emptyList())
-        return ProductWithItems(aggregate.product, items(aggregate.product.id))
-    }
 
-    open fun update(aggregate: ProductWithItems): ProductWithItems {
-        val index = products.indexOfFirst { it.id == aggregate.product.id }
-        require(index >= 0) { "Product with id ${aggregate.product.id} not found" }
-        products[index] = aggregate.product
-        replaceItems(aggregate.product.id, aggregate.items)
-        return ProductWithItems(aggregate.product, items(aggregate.product.id))
-    }
-
-    private fun items(productId: UUID): List<ProductItem> =
-        productItems.filter { it.productId == productId }
-
-    private fun replaceItems(productId: UUID, newItems: List<ProductItem>) {
-        require(newItems.all { it.productId == productId }) {
-            "Product item productId must match aggregate id"
+        val query = entityManager.createQuery(jpql, Product::class.java)
+        if (categoryId != null) {
+            query.setParameter("categoryId", categoryId)
         }
-        productItems.removeIf { it.productId == productId }
-        productItems.addAll(newItems)
+
+        val products = query.resultList
+        if (products.isEmpty()) {
+            return emptyList()
+        }
+
+        val itemsByProductId = findItemsByProductIds(products.map { it.id })
+        return products.map { product ->
+            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+        }
     }
 
-    private fun seed() {
-        if (products.isNotEmpty()) {
+    fun findProductsByIds(productIds: List<Long>): List<ProductWithItems> {
+        if (productIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val products = entityManager.createQuery(
+            "select p from Product p where p.id in :ids",
+            Product::class.java,
+        )
+            .setParameter("ids", productIds)
+            .resultList
+
+        val itemsByProductId = findItemsByProductIds(productIds)
+        return products.map { product ->
+            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+        }
+    }
+
+    fun findProductCreatedAt(productId: Long): LocalDate? =
+        entityManager.find(Product::class.java, productId)?.createdAt
+
+    fun findDailySales(productId: Long): List<DailySale> =
+        entityManager.createQuery(
+            "select s from DailySale s where s.productId = :productId order by s.date",
+            DailySale::class.java,
+        )
+            .setParameter("productId", productId)
+            .resultList
+
+    fun findPopularProductsSince(
+        since: Instant,
+        limit: Int,
+    ): List<PopularProductRow> {
+        val sql = """
+            SELECT
+                p.id AS product_id,
+                p.name AS product_name,
+                SUM(oi.quantity) AS sales_count,
+                SUM(oi.subtotal) AS revenue
+            FROM products p
+            JOIN order_items oi ON p.id = oi.product_id
+            JOIN orders o ON oi.order_id = o.id
+            WHERE o.status = 'PAID' AND o.paid_at >= :paidSince
+            GROUP BY p.id, p.name
+            ORDER BY sales_count DESC
+        """.trimIndent()
+
+        @Suppress("UNCHECKED_CAST")
+        val rows = entityManager.createNativeQuery(sql)
+            .setParameter("paidSince", Timestamp.from(since))
+            .setMaxResults(limit)
+            .resultList as List<Array<Any>>
+
+        return rows.map { columns ->
+            PopularProductRow(
+                productId = columns[0].toId(),
+                name = columns[1].toString(),
+                salesCount = columns[2].toLongValue(),
+                revenue = Money.of(columns[3] as BigDecimal),
+            )
+        }
+    }
+
+    fun save(aggregate: ProductWithItems): ProductWithItems {
+        val product = aggregate.product
+        entityManager.persist(product)
+        entityManager.flush()
+
+        val productId = product.id.takeIf { it != 0L }
+            ?: throw IllegalStateException("Failed to generate product id")
+        aggregate.items.forEach { item ->
+            item.id = 0
+            item.productId = productId
+            entityManager.persist(item)
+        }
+        return ProductWithItems(product, findItems(productId))
+    }
+
+    fun update(aggregate: ProductWithItems): ProductWithItems {
+        val productId = aggregate.product.id.takeIf { it != 0L }
+            ?: throw IllegalArgumentException("Product id must be provided for update")
+        val existing = entityManager.find(Product::class.java, productId)
+            ?: throw IllegalArgumentException("Product with id $productId not found")
+
+        overwriteProduct(existing, aggregate.product)
+        val idsToKeep = aggregate.items.mapNotNull { item ->
+            item.id.takeIf { it != 0L }
+        }
+        if (idsToKeep.isEmpty()) {
+            deleteItemsByProductId(productId)
+        } else {
+            deleteItemsNotIn(productId, idsToKeep)
+        }
+        aggregate.items.forEach { item ->
+            item.productId = productId
+            if (item.id == 0L) {
+                entityManager.persist(item)
+            } else {
+                entityManager.merge(item)
+            }
+        }
+        entityManager.flush()
+
+        return ProductWithItems(existing, findItems(productId))
+    }
+
+    data class PopularProductRow(
+        val productId: Long,
+        val name: String,
+        val salesCount: Long,
+        val revenue: Money,
+    )
+
+    private fun overwriteProduct(target: Product, source: Product) {
+        target.name = source.name
+        target.code = source.code
+        target.description = source.description
+        target.content = source.content
+        target.status = source.status
+        target.sellerId = source.sellerId
+        target.categoryId = source.categoryId
+        target.price = source.price
+        target.discountRate = source.discountRate
+        target.version = source.version
+        target.viewCount = source.viewCount
+        target.salesCount = source.salesCount
+        target.createdAt = source.createdAt
+    }
+
+    private fun findItems(productId: Long): List<ProductItem> =
+        entityManager.createQuery(
+            "select i from ProductItem i where i.productId = :productId",
+            ProductItem::class.java,
+        )
+            .setParameter("productId", productId)
+            .resultList
+
+    private fun findItemsByProductIds(productIds: List<Long>): Map<Long, List<ProductItem>> {
+        if (productIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return entityManager.createQuery(
+            "select i from ProductItem i where i.productId in :productIds",
+            ProductItem::class.java,
+        )
+            .setParameter("productIds", productIds)
+            .resultList
+            .groupBy { it.productId as Long }
+    }
+
+    private fun deleteItemsByProductId(productId: Long) {
+        entityManager.createQuery("delete from ProductItem i where i.productId = :productId")
+            .setParameter("productId", productId)
+            .executeUpdate()
+    }
+
+    private fun deleteItemsNotIn(productId: Long, idsToKeep: List<Long>) {
+        if (idsToKeep.isEmpty()) {
+            deleteItemsByProductId(productId)
             return
         }
-
-        val sellerId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-        val electronicsId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-        val beautyId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
-
-        val phoneId = UUID.fromString("11111111-1111-1111-1111-111111111111")
-        val phone = Product(
-            id = phoneId,
-            name = "Galaxy Fold",
-            code = ProductCode("GALAXY-FOLD"),
-            description = "Latest foldable smartphone",
-            content = "Premium foldable experience with cutting-edge display.",
-            status = ProductStatus.ON_SALE,
-            sellerId = sellerId,
-            categoryId = electronicsId,
-            price = Money.of(239900L),
-            discountRate = Percentage.of(5.0),
-            version = 3,
-            viewCount = 4820,
-            salesCount = 350,
+        entityManager.createQuery(
+            "delete from ProductItem i where i.productId = :productId and i.id not in :ids",
         )
-        registerProduct(phone, LocalDate.now().minusDays(2))
-        productItems.addAll(
-            listOf(
-                ProductItem(
-                    id = UUID.fromString("21111111-1111-1111-1111-111111111111"),
-                    productId = phoneId,
-                    name = "Galaxy Fold Phantom Black",
-                    unitPrice = Money.of(239900L),
-                    description = "Phantom Black color option",
-                    stock = StockQuantity.of(25L),
-                    status = ProductItemStatus.ACTIVE,
-                    code = ProductItemCode("GFOLD-BLK"),
-                ),
-                ProductItem(
-                    id = UUID.fromString("21111111-1111-1111-1111-222222222222"),
-                    productId = phoneId,
-                    name = "Galaxy Fold Matte Silver",
-                    unitPrice = Money.of(239900L),
-                    description = "Matte Silver color option",
-                    stock = StockQuantity.of(18L),
-                    status = ProductItemStatus.ACTIVE,
-                    code = ProductItemCode("GFOLD-SLV"),
-                ),
-            ),
-        )
-        dailySales[phoneId] = listOf(
-            DailySale(LocalDate.now().minusDays(1), 24),
-            DailySale(LocalDate.now().minusDays(2), 17),
-            DailySale(LocalDate.now().minusDays(3), 11),
-        )
-
-        val lipstickId = UUID.fromString("22222222-2222-2222-2222-222222222222")
-        val lipstick = Product(
-            id = lipstickId,
-            name = "Velvet Matte Lipstick",
-            code = ProductCode("VELVET-LIP"),
-            description = "Luxurious matte lipstick",
-            content = "Smooth matte finish with long-lasting color payoff.",
-            status = ProductStatus.ON_SALE,
-            sellerId = sellerId,
-            categoryId = beautyId,
-            price = Money.of(25900L),
-            discountRate = Percentage.of(15.0),
-            version = 5,
-            viewCount = 10950,
-            salesCount = 1240,
-        )
-        registerProduct(lipstick, LocalDate.now().minusDays(5))
-        productItems.addAll(
-            listOf(
-                ProductItem(
-                    id = UUID.fromString("23333333-3333-3333-3333-333333333333"),
-                    productId = lipstickId,
-                    name = "Velvet Matte - Ruby Red",
-                    unitPrice = Money.of(25900L),
-                    description = "Bold ruby red shade",
-                    stock = StockQuantity.of(120L),
-                    status = ProductItemStatus.ACTIVE,
-                    code = ProductItemCode("VELVET-RUBY"),
-                ),
-                ProductItem(
-                    id = UUID.fromString("24444444-4444-4444-4444-444444444444"),
-                    productId = lipstickId,
-                    name = "Velvet Matte - Vintage Rose",
-                    unitPrice = Money.of(25900L),
-                    description = "Romantic vintage rose shade",
-                    stock = StockQuantity.of(87L),
-                    status = ProductItemStatus.ACTIVE,
-                    code = ProductItemCode("VELVET-ROSE"),
-                ),
-            ),
-        )
-        dailySales[lipstickId] = listOf(
-            DailySale(LocalDate.now().minusDays(1), 56),
-            DailySale(LocalDate.now().minusDays(2), 42),
-            DailySale(LocalDate.now().minusDays(3), 31),
-            DailySale(LocalDate.now().minusDays(4), 22),
-        )
-
-        val earbudsId = UUID.fromString("33333333-3333-3333-3333-333333333333")
-        val earbuds = Product(
-            id = earbudsId,
-            name = "NeoBuds Pro",
-            code = ProductCode("NEOBUDS-PRO"),
-            description = "Noise-cancelling wireless earbuds",
-            content = "Adaptive ANC with studio-quality sound.",
-            status = ProductStatus.ON_SALE,
-            sellerId = sellerId,
-            categoryId = electronicsId,
-            price = Money.of(129000L),
-            discountRate = null,
-            version = 2,
-            viewCount = 6540,
-            salesCount = 780,
-        )
-        registerProduct(earbuds, LocalDate.now().minusDays(1))
-        productItems.addAll(
-            listOf(
-                ProductItem(
-                    id = UUID.fromString("25555555-5555-5555-5555-555555555555"),
-                    productId = earbudsId,
-                    name = "NeoBuds Pro - Graphite",
-                    unitPrice = Money.of(129000L),
-                    description = "Graphite color",
-                    stock = StockQuantity.of(65L),
-                    status = ProductItemStatus.ACTIVE,
-                    code = ProductItemCode("NEOBUDS-GRP"),
-                ),
-                ProductItem(
-                    id = UUID.fromString("26666666-6666-6666-6666-666666666666"),
-                    productId = earbudsId,
-                    name = "NeoBuds Pro - Pearl",
-                    unitPrice = Money.of(129000L),
-                    description = "Pearl white color",
-                    stock = StockQuantity.of(54L),
-                    status = ProductItemStatus.ACTIVE,
-                    code = ProductItemCode("NEOBUDS-PRL"),
-                ),
-            ),
-        )
-        dailySales[earbudsId] = listOf(
-            DailySale(LocalDate.now().minusDays(1), 28),
-            DailySale(LocalDate.now().minusDays(2), 33),
-            DailySale(LocalDate.now().minusDays(3), 19),
-        )
+            .setParameter("productId", productId)
+            .setParameter("ids", idsToKeep)
+            .executeUpdate()
     }
 
-    private fun registerProduct(product: Product, createdAt: LocalDate) {
-        products += product
-        productCreatedAt[product.id] = createdAt
+    private fun Any.toLongValue(): Long = when (this) {
+        is Long -> this
+        is Int -> this.toLong()
+        is BigInteger -> this.toLong()
+        is BigDecimal -> this.toLong()
+        else -> error("Unsupported numeric type: ${this::class.simpleName}")
     }
 
-    data class DailySale(
-        val date: LocalDate,
-        val quantity: Int,
-    )
+    private fun Any.toId(): Long = when (this) {
+        is Long -> this
+        is Int -> this.toLong()
+        is BigInteger -> this.toLong()
+        is BigDecimal -> this.toLong()
+        else -> error("Unsupported id column type: ${this::class.simpleName}")
+    }
 }

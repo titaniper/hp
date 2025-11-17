@@ -2,27 +2,29 @@ package io.joopang.services.cart.application
 
 import io.joopang.services.cart.infrastructure.CartItemRepository
 import io.joopang.services.product.domain.InsufficientStockException
-import io.joopang.services.product.infrastructure.ProductRepository
+import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.util.UUID
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.annotation.DirtiesContext
 
-class CartServiceTest {
+@SpringBootTest
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+class CartServiceTest @Autowired constructor(
+    private val cartService: CartService,
+    private val cartItemRepository: CartItemRepository,
+) : IntegrationTestSupport() {
 
-    private lateinit var cartService: CartService
-
-    private val cartItemRepository = CartItemRepository()
-    private val productRepository = ProductRepository()
-
-    private val userId = UUID.randomUUID()
-    private val productId = UUID.fromString("11111111-1111-1111-1111-111111111111")
-    private val productItemId = UUID.fromString("21111111-1111-1111-1111-111111111111")
+    private val userId = 100L
+    private val productId = 400L
+    private val productItemId = 500L
 
     @BeforeEach
-    fun setUp() {
-        cartService = CartService(cartItemRepository, productRepository)
+    fun cleanCart() {
+        inTransaction { cartItemRepository.deleteByUserId(userId) }
     }
 
     @Test
@@ -75,8 +77,9 @@ class CartServiceTest {
 
     @Test
     fun `merge carts moves items and clears guest`() {
-        val guestId = UUID.randomUUID()
-        val guestItemId = UUID.fromString("21111111-1111-1111-1111-222222222222")
+        val guestId = 9999L
+        val guestItemId = 501L
+        inTransaction { cartItemRepository.deleteByUserId(guestId) }
 
         cartService.addItem(
             CartService.AddCartItemCommand(guestId, productId, guestItemId, quantity = 1),

@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/categories")
@@ -18,7 +17,7 @@ class CategoryController(
 
     @GetMapping
     fun listCategories(
-        @RequestParam(required = false) parentId: UUID?,
+        @RequestParam(required = false) parentId: Long?,
     ): List<CategoryResponse> =
         categoryService
             .listCategories(parentId)
@@ -26,7 +25,7 @@ class CategoryController(
 
     @GetMapping("/{id}")
     fun getCategory(
-        @PathVariable id: UUID,
+        @PathVariable id: Long,
     ): CategoryResponse =
         categoryService
             .getCategory(id)
@@ -61,14 +60,14 @@ class CategoryController(
 data class CreateCategoryRequest(
     val name: String,
     val status: String,
-    val parentId: UUID?,
-    val id: UUID? = null,
+    val parentId: Long?,
+    val id: Long? = null,
 )
 
 data class CategoryResponse(
-    val id: UUID,
+    val id: Long?,
     val name: String,
     val level: Int,
     val status: String,
-    val parentId: UUID?,
+    val parentId: Long?,
 )

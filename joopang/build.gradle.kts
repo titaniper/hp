@@ -3,9 +3,30 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     alias(libs.plugins.kotlin.jvm)                     
     alias(libs.plugins.kotlin.spring)                  
+    alias(libs.plugins.kotlin.allopen)
+    alias(libs.plugins.kotlin.noarg)
     alias(libs.plugins.spring.boot)                    
     alias(libs.plugins.spring.dependency.management)   
     id("jacoco")                                       
+}
+
+allOpen {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.Embeddable")
+    annotation("jakarta.persistence.MappedSuperclass")
+    annotation("javax.persistence.Entity")
+    annotation("javax.persistence.Embeddable")
+    annotation("javax.persistence.MappedSuperclass")
+}
+
+noArg {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.Embeddable")
+    annotation("jakarta.persistence.MappedSuperclass")
+    annotation("javax.persistence.Entity")
+    annotation("javax.persistence.Embeddable")
+    annotation("javax.persistence.MappedSuperclass")
+    invokeInitializers = false
 }
 
 allprojects {
@@ -22,14 +43,21 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")        
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")    
 
-    implementation(libs.spring.boot.starter.web)                 
+    implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.data.jpa)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
     implementation("org.springframework.boot:spring-boot-starter-validation")  
     implementation(libs.springdoc.openapi.starter.webmvc.ui)
+    implementation(libs.p6spy.spring.boot.starter)
 
     annotationProcessor(libs.spring.boot.configuration.processor) 
 
+    runtimeOnly(libs.mysql.connector)
+
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.test.containers.junit.jupiter)
+    testImplementation(libs.test.containers.mysql)
 
     testImplementation("io.kotest:kotest-runner-junit5:5.8.0")  
     testImplementation("io.kotest:kotest-assertions-core:5.8.0") 
@@ -61,8 +89,11 @@ tasks.getByName("jar") {
 }
 
 tasks.test {
-    ignoreFailures = true    
-    useJUnitPlatform()       
+    ignoreFailures = true
+    useJUnitPlatform()
+    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
+        systemProperty("spring.profiles.active", "test")
+    }
 }
 
 tasks.jacocoTestReport {

@@ -1,18 +1,56 @@
 package io.joopang.services.category.domain
 
-import java.util.UUID
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
 
-data class Category(
-    val id: UUID,
-    val level: Int,
-    val name: String,
-    val status: CategoryStatus,
-    val parentId: UUID? = null,
+@Entity
+@Table(
+    name = "categories",
+    indexes = [
+        Index(
+            name = "idx_categories_parent_id",
+            columnList = "parent_id",
+        ),
+    ],
+)
+class Category(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(columnDefinition = "BIGINT")
+    var id: Long = 0,
+
+    @Column(nullable = false)
+    var level: Int = 0,
+
+    @Column(nullable = false)
+    var name: String = "",
+
+    @Column(nullable = false, length = 32)
+    var status: CategoryStatus = CategoryStatus("DRAFT"),
+
+    @Column(name = "parent_id", columnDefinition = "BIGINT")
+    var parentId: Long? = null,
 ) {
     init {
-        require(level >= 0) { "Category level must be non-negative" }
-        require(name.isNotBlank()) { "Category name must not be blank" }
+        if (id != 0L || name.isNotBlank()) {
+            require(level >= 0) { "Category level must be non-negative" }
+            require(name.isNotBlank()) { "Category name must not be blank" }
+        }
     }
 
     fun isRoot(): Boolean = parentId == null
+
+    @Suppress("unused")
+    constructor() : this(
+        id = 0,
+        level = 0,
+        name = "",
+        status = CategoryStatus("DRAFT"),
+        parentId = null,
+    )
 }

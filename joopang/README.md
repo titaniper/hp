@@ -40,6 +40,10 @@
 ```
 > `build.gradle.kts`에서 테스트 실패가 무시되도록(`ignoreFailures = true`) 설정돼 있으니, 실제 품질 검증 시 값을 조정하세요.
 
+### Test Profile (H2)
+- `./gradlew test` 실행 시 자동으로 `test` 프로파일이 활성화되고, 인메모리 H2(`jdbc:h2:mem:joopang-test`)를 사용합니다.
+- 로컬 애플리케이션은 기본값(로컬 MySQL)로 계속 실행되며, 다른 DB를 쓰고 싶다면 `SPRING_PROFILES_ACTIVE` 값을 직접 지정하세요.
+
 ## API Documentation
 - Springdoc OpenAPI UI: `http://localhost:8080/swagger-ui/index.html` (기본 부트 실행 기준)
 - OpenAPI/도메인 명세, ERD 등은 `docs/design` 디렉터리에 정리돼 있습니다.

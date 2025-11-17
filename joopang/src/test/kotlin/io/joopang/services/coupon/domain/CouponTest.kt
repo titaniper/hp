@@ -4,14 +4,12 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 
 class CouponTest {
 
     private val coupon = Coupon(
-        id = UUID.randomUUID(),
-        userId = UUID.randomUUID(),
-        couponTemplateId = UUID.randomUUID(),
+        userId = 1L,
+        couponTemplateId = 2L,
         type = CouponType.AMOUNT,
         value = BigDecimal("1000"),
         issuedAt = Instant.now().minusSeconds(60),
@@ -26,7 +24,7 @@ class CouponTest {
 
     @Test
     fun `mark used changes status`() {
-        val orderId = UUID.randomUUID()
+        val orderId = 999L
 
         val used = coupon.markUsed(orderId)
 

@@ -9,29 +9,31 @@ import io.joopang.services.delivery.domain.DeliveryStatus
 import io.joopang.services.delivery.domain.DeliveryType
 import io.joopang.services.delivery.infrastructure.DeliveryRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
-import java.util.UUID
 
 @Service
+@Transactional(readOnly = true)
 class DeliveryService(
     private val deliveryRepository: DeliveryRepository,
 ) {
 
-    fun listDeliveries(orderItemId: UUID?): List<Output> =
+    fun listDeliveries(orderItemId: Long?): List<Output> =
         if (orderItemId == null) {
             deliveryRepository.findAll()
         } else {
             deliveryRepository.findByOrderItemId(orderItemId)
         }.map { it.toOutput() }
 
-    fun getDelivery(id: UUID): Output =
+    fun getDelivery(id: Long): Output =
         deliveryRepository.findById(id)
             ?.toOutput()
             ?: throw DeliveryNotFoundException(id.toString())
 
+    @Transactional
     fun registerDelivery(command: RegisterDeliveryCommand): Output {
         val delivery = Delivery(
-            id = command.id ?: UUID.randomUUID(),
+            id = command.id ?: 0,
             orderItemId = command.orderItemId,
             type = command.type,
             address = command.address,
@@ -58,7 +60,7 @@ class DeliveryService(
         )
 
     data class RegisterDeliveryCommand(
-        val orderItemId: UUID,
+        val orderItemId: Long,
         val type: DeliveryType,
         val address: Address,
         val receiverTel: PhoneNumber,
@@ -66,12 +68,12 @@ class DeliveryService(
         val status: DeliveryStatus,
         val trackingNumber: String?,
         val deliveryFee: Money?,
-        val id: UUID? = null,
+        val id: Long? = null,
     )
 
     data class Output(
-        val id: UUID,
-        val orderItemId: UUID,
+        val id: Long,
+        val orderItemId: Long,
         val type: DeliveryType,
         val address: Address,
         val receiverTel: PhoneNumber,

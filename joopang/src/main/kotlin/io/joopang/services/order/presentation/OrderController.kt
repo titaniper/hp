@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/orders")
@@ -30,7 +29,7 @@ class OrderController(
 
     @GetMapping("/{orderId}")
     fun getOrder(
-        @PathVariable orderId: UUID,
+        @PathVariable orderId: Long,
     ): OrderResponse =
         orderService
             .getOrder(orderId)
@@ -44,7 +43,7 @@ class OrderController(
 
     @PostMapping("/{orderId}/payment")
     fun processPayment(
-        @PathVariable orderId: UUID,
+        @PathVariable orderId: Long,
         @RequestBody request: ProcessPaymentRequest,
     ): PaymentResponse =
         orderService
@@ -137,24 +136,24 @@ class OrderController(
 }
 
 data class CreateOrderRequest(
-    val userId: UUID,
+    val userId: Long,
     val recipientName: String,
     val items: List<CreateOrderItemRequest>,
-    val couponId: UUID?,
+    val couponId: Long?,
     val memo: String?,
     val imageUrl: String?,
     val zoneId: String?,
 )
 
 data class CreateOrderItemRequest(
-    val productId: UUID,
-    val productItemId: UUID?,
+    val productId: Long,
+    val productItemId: Long?,
     val quantity: Int,
 )
 
 data class OrderResponse(
-    val orderId: UUID,
-    val userId: UUID,
+    val orderId: Long,
+    val userId: Long,
     val status: String,
     val recipientName: String,
     val orderedAt: String,
@@ -170,9 +169,9 @@ data class OrderResponse(
 )
 
 data class OrderItemResponse(
-    val orderItemId: UUID,
-    val productId: UUID?,
-    val productItemId: UUID?,
+    val orderItemId: Long,
+    val productId: Long?,
+    val productItemId: Long?,
     val productName: String,
     val quantity: Int,
     val unitPrice: BigDecimal,
@@ -180,19 +179,19 @@ data class OrderItemResponse(
 )
 
 data class OrderDiscountResponse(
-    val discountId: UUID,
+    val discountId: Long,
     val type: String,
-    val referenceId: UUID?,
+    val referenceId: Long?,
     val amount: BigDecimal,
-    val couponId: UUID?,
+    val couponId: Long?,
 )
 
 data class ProcessPaymentRequest(
-    val userId: UUID,
+    val userId: Long,
 )
 
 data class PaymentResponse(
-    val orderId: UUID,
+    val orderId: Long,
     val status: String,
     val paidAmount: BigDecimal,
     val remainingBalance: BigDecimal,

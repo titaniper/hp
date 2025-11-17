@@ -30,6 +30,8 @@ enum class ErrorCode(
     EXPIRED_COUPON("C003", HttpStatus.GONE, "쿠폰 사용 기간이 만료되었습니다."),
     ALREADY_USED("C004", HttpStatus.CONFLICT, "이미 사용된 쿠폰입니다.");
 
-    fun toErrorResponse(message: String? = null): ErrorResponse =
-        ErrorResponse(code, message ?: defaultMessage)
+    fun toErrorResponse(
+        message: String? = null,
+        path: String? = null,
+    ): ErrorResponse = ErrorResponse(code, message ?: defaultMessage, path = path)
 }

@@ -5,9 +5,10 @@ import io.joopang.services.seller.domain.SellerNotFoundException
 import io.joopang.services.seller.domain.SellerType
 import io.joopang.services.seller.infrastructure.SellerRepository
 import org.springframework.stereotype.Service
-import java.util.UUID
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class SellerService(
     private val sellerRepository: SellerRepository,
 ) {
@@ -16,14 +17,15 @@ class SellerService(
         sellerRepository.findAll()
             .map { it.toOutput() }
 
-    fun getSeller(id: UUID): Output =
+    fun getSeller(id: Long): Output =
         sellerRepository.findById(id)
             ?.toOutput()
             ?: throw SellerNotFoundException(id.toString())
 
+    @Transactional
     fun registerSeller(command: RegisterSellerCommand): Output {
         val seller = Seller(
-            id = command.id ?: UUID.randomUUID(),
+            id = command.id ?: 0,
             name = command.name,
             type = command.type,
             ownerId = command.ownerId,
@@ -42,14 +44,14 @@ class SellerService(
     data class RegisterSellerCommand(
         val name: String,
         val type: SellerType,
-        val ownerId: UUID,
-        val id: UUID? = null,
+        val ownerId: Long,
+        val id: Long? = null,
     )
 
     data class Output(
-        val id: UUID,
+        val id: Long,
         val name: String,
         val type: SellerType,
-        val ownerId: UUID,
+        val ownerId: Long,
     )
 }

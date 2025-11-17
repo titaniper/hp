@@ -1,7 +1,6 @@
 package io.joopang.services.order.domain
 
 import io.joopang.services.common.domain.Money
-import java.util.UUID
 
 data class OrderAggregate(
     val order: Order,
@@ -11,8 +10,10 @@ data class OrderAggregate(
 
     init {
         require(items.isNotEmpty()) { "Order must have at least one item" }
-        require(items.all { it.orderId == order.id }) { "Order item must reference the same order" }
-        require(discounts.all { it.orderId == order.id }) { "Order discount must reference the same order" }
+        if (order.id != 0L) {
+            require(items.all { it.orderId == order.id }) { "Order item must reference the same order" }
+            require(discounts.all { it.orderId == order.id }) { "Order discount must reference the same order" }
+        }
     }
 
     fun totalItemSubtotal(): Money =

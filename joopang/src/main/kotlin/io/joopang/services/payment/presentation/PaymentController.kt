@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/payments")
@@ -25,7 +24,7 @@ class PaymentController(
 
     @GetMapping
     fun listPayments(
-        @RequestParam(required = false) orderId: UUID?,
+        @RequestParam(required = false) orderId: Long?,
     ): List<PaymentResponse> =
         paymentService
             .listPayments(orderId)
@@ -33,7 +32,7 @@ class PaymentController(
 
     @GetMapping("/{id}")
     fun getPayment(
-        @PathVariable id: UUID,
+        @PathVariable id: Long,
     ): PaymentResponse =
         paymentService
             .getPayment(id)
@@ -99,7 +98,7 @@ class PaymentController(
 }
 
 data class RegisterPaymentRequest(
-    val orderId: UUID,
+    val orderId: Long,
     val paymentGateway: String,
     val paymentMethod: String,
     val paymentAmount: BigDecimal,
@@ -110,12 +109,12 @@ data class RegisterPaymentRequest(
     val requestedAt: Instant,
     val approvedAt: Instant?,
     val cancelledAt: Instant?,
-    val id: UUID? = null,
+    val id: Long? = null,
 )
 
 data class PaymentResponse(
-    val id: UUID,
-    val orderId: UUID,
+    val id: Long,
+    val orderId: Long,
     val paymentGateway: String,
     val paymentMethod: String,
     val paymentAmount: BigDecimal,

@@ -5,34 +5,39 @@ import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.domain.Quantity
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponNotFoundException
-import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.domain.CouponStatus
+import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.domain.InvalidCouponException
+import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.order.domain.Order
 import io.joopang.services.order.domain.OrderAggregate
 import io.joopang.services.order.domain.OrderDiscount
 import io.joopang.services.order.domain.OrderDiscountType
 import io.joopang.services.order.domain.OrderItem
 import io.joopang.services.order.domain.OrderNotFoundException
+import io.joopang.services.order.domain.OrderOwnershipException
 import io.joopang.services.order.domain.OrderStatus
+import io.joopang.services.order.domain.OrderPaymentNotAllowedException
+import io.joopang.services.order.infrastructure.OrderRepository
 import io.joopang.services.product.domain.InsufficientStockException
 import io.joopang.services.product.domain.ProductItemNotFoundException
 import io.joopang.services.product.domain.ProductNotFoundException
 import io.joopang.services.product.domain.ProductWithItems
+import io.joopang.services.product.domain.ProductItemInactiveException
 import io.joopang.services.product.domain.StockQuantity
-import io.joopang.services.user.domain.UserNotFoundException
-import io.joopang.services.coupon.infrastructure.CouponRepository
-import io.joopang.services.order.infrastructure.OrderRepository
 import io.joopang.services.product.infrastructure.ProductRepository
+import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.UUID
 
 @Service
+@Transactional(readOnly = true)
 class OrderService(
     private val orderRepository: OrderRepository,
     private val productRepository: ProductRepository,
@@ -41,12 +46,13 @@ class OrderService(
     private val dataTransmissionService: OrderDataTransmissionService,
     private val productLockManager: ProductLockManager,
 ) {
+    private val logger = LoggerFactory.getLogger(OrderService::class.java)
 
+    @Transactional
     fun createOrder(command: CreateOrderCommand): Output {
         val user = userRepository.findById(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
-
-        val orderId = orderRepository.nextIdentity()
+        val userId = user.id
         val now = Instant.now()
         val orderMonth = toOrderMonth(now, command.zoneId)
 
@@ -57,7 +63,7 @@ class OrderService(
         val subtotal = reservation.subtotal
 
         val couponResult = command.couponId?.let { couponId ->
-            val coupon = couponRepository.findUserCoupon(command.userId, couponId)
+            val coupon = couponRepository.findUserCoupon(userId, couponId)
                 ?: throw CouponNotFoundException(couponId.toString())
             validateCoupon(coupon)
             val discountAmount = calculateDiscount(subtotal, coupon)
@@ -69,8 +75,6 @@ class OrderService(
             ?.let { result ->
                 listOf(
                     OrderDiscount(
-                        id = UUID.randomUUID(),
-                        orderId = orderId,
                         type = OrderDiscountType.COUPON,
                         referenceId = result.coupon.couponTemplateId,
                         price = result.discountAmount,
@@ -80,8 +84,7 @@ class OrderService(
             } ?: emptyList()
 
         val order = Order(
-            id = orderId,
-            userId = user.id,
+            userId = userId,
             imageUrl = command.imageUrl,
             status = OrderStatus.PENDING,
             recipientName = command.recipientName,
@@ -94,8 +97,6 @@ class OrderService(
 
         val items = reservation.drafts.map { draft ->
             OrderItem(
-                id = UUID.randomUUID(),
-                orderId = orderId,
                 productId = draft.productId,
                 productItemId = draft.productItemId,
                 productName = draft.productName,
@@ -114,7 +115,7 @@ class OrderService(
         return orderRepository.save(aggregate).toOutput()
     }
 
-    fun getOrder(orderId: UUID): Output =
+    fun getOrder(orderId: Long): Output =
         orderRepository.findById(orderId)
             ?.toOutput()
             ?: throw OrderNotFoundException(orderId.toString())
@@ -123,18 +124,23 @@ class OrderService(
         orderRepository.findAll()
             .map { it.toOutput() }
 
+    @Transactional
     fun processPayment(command: ProcessPaymentCommand): PaymentOutput {
-        val aggregate = orderRepository.findById(command.orderId)
+        val aggregate = orderRepository.findByIdForUpdate(command.orderId)
             ?: throw OrderNotFoundException(command.orderId.toString())
 
         if (aggregate.order.userId != command.userId) {
-            throw IllegalStateException("Order does not belong to user ${command.userId}")
+            throw OrderOwnershipException(command.orderId.toString(), command.userId.toString())
         }
         if (!aggregate.order.canPay()) {
-            throw IllegalStateException("Order ${aggregate.order.id} cannot be paid in status ${aggregate.order.status}")
+            throw OrderPaymentNotAllowedException(
+                aggregate.order.id.toString(),
+                aggregate.order.status,
+            )
         }
+        val orderId = aggregate.order.id
 
-        val user = userRepository.findById(command.userId)
+        val user = userRepository.findByIdForUpdate(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
 
         val payableAmount = aggregate.order.payableAmount()
@@ -146,14 +152,14 @@ class OrderService(
                 val coupon = couponRepository.findById(couponId)
                     ?: throw CouponNotFoundException(couponId.toString())
                 if (coupon.userId != aggregate.order.userId) {
-                    throw IllegalStateException("Coupon $couponId does not belong to user ${aggregate.order.userId}")
+                    throw InvalidCouponException("Coupon $couponId does not belong to user ${aggregate.order.userId}")
                 }
                 if (coupon.status != CouponStatus.AVAILABLE) {
-                    throw IllegalStateException("Coupon $couponId is not available")
+                    throw InvalidCouponException("Coupon $couponId is not available")
                 }
                 val usedAt = Instant.now()
                 val updatedCoupon = coupon.markUsed(
-                    orderId = aggregate.order.id,
+                    orderId = orderId,
                     usedAt = usedAt,
                 )
                 couponRepository.save(updatedCoupon)
@@ -165,7 +171,7 @@ class OrderService(
         orderRepository.update(updatedAggregate)
 
         val payload = OrderDataPayload(
-            orderId = updatedAggregate.order.id,
+            orderId = orderId,
             userId = updatedAggregate.order.userId,
             items = updatedAggregate.items.map { item ->
                 OrderDataLineItem(
@@ -188,7 +194,7 @@ class OrderService(
         }
 
         return PaymentOutput(
-            orderId = updatedAggregate.order.id,
+            orderId = orderId,
             paidAmount = updatedAggregate.order.payableAmount(),
             remainingBalance = updatedUser.balance,
             status = PaymentStatus.SUCCESS,
@@ -208,19 +214,14 @@ class OrderService(
                     val aggregate = productRepository.findById(productId)
                         ?: throw ProductNotFoundException(productId.toString())
 
-                    val updatedItems = aggregate.items.toMutableList()
-
                     productItems.forEach { itemCommand ->
                         val productItemId = itemCommand.productItemId
                             ?: throw ProductItemNotFoundException(productId.toString(), "null")
-                        val currentItemIndex = updatedItems.indexOfFirst { it.id == productItemId }
-                        if (currentItemIndex < 0) {
-                            throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
-                        }
+                        val currentItem = aggregate.items.firstOrNull { it.id == productItemId }
+                            ?: throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
 
-                        val currentItem = updatedItems[currentItemIndex]
                         if (!currentItem.isActive()) {
-                            throw IllegalStateException("Product item $productItemId is not active")
+                            throw ProductItemInactiveException(productId.toString(), productItemId.toString())
                         }
 
                         val requested = StockQuantity.of(itemCommand.quantity.toLong())
@@ -228,8 +229,16 @@ class OrderService(
                             throw InsufficientStockException(productId.toString(), productItemId.toString())
                         }
 
-                        val updatedItem = currentItem.copy(stock = currentItem.stock - requested)
-                        updatedItems[currentItemIndex] = updatedItem
+                        val consumed = productRepository.consumeStock(productItemId, itemCommand.quantity.toLong())
+                        if (!consumed) {
+                            logger.warn(
+                                "Failed to consume stock. productId={}, productItemId={}, requested={}",
+                                productId,
+                                productItemId,
+                                itemCommand.quantity,
+                            )
+                            throw InsufficientStockException(productId.toString(), productItemId.toString())
+                        }
 
                         val quantity = Quantity(itemCommand.quantity)
                         val lineSubtotal = currentItem.unitPrice * quantity.value
@@ -244,7 +253,6 @@ class OrderService(
                         )
                     }
 
-                    productRepository.update(ProductWithItems(aggregate.product, updatedItems))
                 }
             }
 
@@ -326,29 +334,29 @@ class OrderService(
         )
 
     data class CreateOrderCommand(
-        val userId: UUID,
+        val userId: Long,
         val recipientName: String,
         val items: List<CreateOrderItemCommand>,
-        val couponId: UUID? = null,
+        val couponId: Long? = null,
         val memo: String? = null,
         val imageUrl: String? = null,
         val zoneId: ZoneId? = null,
     )
 
     data class CreateOrderItemCommand(
-        val productId: UUID,
-        val productItemId: UUID?,
+        val productId: Long,
+        val productItemId: Long?,
         val quantity: Int,
     )
 
     data class ProcessPaymentCommand(
-        val orderId: UUID,
-        val userId: UUID,
+        val orderId: Long,
+        val userId: Long,
     )
 
     data class Output(
-        val orderId: UUID,
-        val userId: UUID,
+        val orderId: Long,
+        val userId: Long,
         val status: OrderStatus,
         val recipientName: String,
         val orderedAt: Instant,
@@ -363,9 +371,9 @@ class OrderService(
         val discounts: List<Discount>,
     ) {
         data class Item(
-            val orderItemId: UUID,
-            val productId: UUID?,
-            val productItemId: UUID?,
+            val orderItemId: Long,
+            val productId: Long?,
+            val productItemId: Long?,
             val productName: String,
             val quantity: Quantity,
             val unitPrice: Money,
@@ -375,16 +383,16 @@ class OrderService(
         )
 
         data class Discount(
-            val discountId: UUID,
+            val discountId: Long,
             val type: OrderDiscountType,
-            val referenceId: UUID?,
+            val referenceId: Long?,
             val amount: Money,
-            val couponId: UUID?,
+            val couponId: Long?,
         )
     }
 
     data class PaymentOutput(
-        val orderId: UUID,
+        val orderId: Long,
         val paidAmount: Money,
         val remainingBalance: Money,
         val status: PaymentStatus,
@@ -397,9 +405,9 @@ class OrderService(
     }
 
     private data class OrderItemDraft(
-        val productId: UUID,
+        val productId: Long,
         val productName: String,
-        val productItemId: UUID?,
+        val productItemId: Long?,
         val quantity: Quantity,
         val unitPrice: Money,
         val subtotal: Money,

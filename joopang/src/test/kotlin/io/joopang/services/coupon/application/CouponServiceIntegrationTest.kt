@@ -1,5 +1,6 @@
 package io.joopang.services.coupon.application
 
+import io.joopang.services.common.domain.Email
 import io.joopang.services.common.domain.Money
 import io.joopang.services.coupon.domain.CouponTemplate
 import io.joopang.services.coupon.domain.CouponTemplateStatus
@@ -7,6 +8,7 @@ import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.infrastructure.UserRepository
+import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -15,7 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.annotation.DirtiesContext
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -27,15 +28,13 @@ class CouponServiceIntegrationTest @Autowired constructor(
     private val couponRepository: CouponRepository,
     private val couponTemplateRepository: CouponTemplateRepository,
     private val userRepository: UserRepository,
-) {
+) : IntegrationTestSupport() {
 
-    private lateinit var templateId: UUID
+    private var templateId: Long = 0
 
     @BeforeEach
     fun setupTemplate() {
-        templateId = UUID.randomUUID()
         val template = CouponTemplate(
-            id = templateId,
             title = "한정 수량",
             type = CouponType.AMOUNT,
             value = BigDecimal("1000"),
@@ -48,7 +47,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
             startAt = Instant.now().minusSeconds(60),
             endAt = Instant.now().plusSeconds(300),
         )
-        couponTemplateRepository.save(template)
+        templateId = inTransaction { couponTemplateRepository.save(template).id }
     }
 
     @Test
@@ -58,14 +57,20 @@ class CouponServiceIntegrationTest @Autowired constructor(
         val startLatch = CountDownLatch(1)
         val doneLatch = CountDownLatch(threads)
 
-        val successes = java.util.Collections.synchronizedList(mutableListOf<UUID>())
+        val successes = java.util.Collections.synchronizedList(mutableListOf<Long>())
         val failures = java.util.Collections.synchronizedList(mutableListOf<Throwable>())
 
         repeat(threads) { index ->
             executor.execute {
-                val user = userRepository.save(
-                    userRepository.findAll().first().copy(id = UUID.randomUUID()),
-                )
+                val user = inTransaction {
+                    val baseUser = userRepository.findAll().first()
+                    userRepository.save(
+                        baseUser.copy(
+                            id = 0,
+                            email = Email("coupon-${System.nanoTime()}@joopang.com"),
+                        ),
+                    )
+                }
                 try {
                     startLatch.await()
                     val result = couponService.issueCoupon(
@@ -74,7 +79,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
                             userId = user.id,
                         ),
                     )
-                    successes += result.userCouponId
+                    successes += result.coupon.id
                 } catch (ex: Exception) {
                     failures += ex
                 } finally {

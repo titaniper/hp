@@ -1,2 +1,10 @@
 spring:
-  application.name: joopang
+  application:
+    name: joopang
+  profiles:
+    default: local
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: true

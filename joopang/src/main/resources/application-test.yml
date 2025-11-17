@@ -1,0 +1,27 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: false
+        dialect: org.hibernate.dialect.MySQLDialect
+        jdbc.time_zone: UTC
+        type.preferred_uuid_jdbc_type: CHAR
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+      data-locations:
+        - classpath:data.sql
+
+logging:
+  level:
+    org.hibernate.SQL: warn

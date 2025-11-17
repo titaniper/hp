@@ -9,6 +9,9 @@
 
 # Gradle 캐시 디렉토리 (의존성 다운로드, 빌드 캐시 등)
 .gradle
+.gradle-home
+
+bin
 
 # 빌드 결과물 디렉토리
 build/

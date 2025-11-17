@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/products")
@@ -26,7 +25,7 @@ class ProductController(
 
     @GetMapping
     fun getProducts(
-        @RequestParam(required = false) categoryId: UUID?,
+        @RequestParam(required = false) categoryId: Long?,
         @RequestParam(defaultValue = "NEWEST") sort: String,
     ): List<ProductResponse> {
         val sortOption = parseSort(sort)
@@ -56,7 +55,7 @@ class ProductController(
 
     @GetMapping("/{id}")
     fun getProduct(
-        @PathVariable("id") productId: UUID,
+        @PathVariable("id") productId: Long,
     ): ProductResponse =
         productService
             .getProduct(productId)
@@ -72,7 +71,7 @@ class ProductController(
 
     @PutMapping("/{id}")
     fun updateProduct(
-        @PathVariable("id") productId: UUID,
+        @PathVariable("id") productId: Long,
         @RequestBody request: ProductUpsertRequest,
     ): ProductResponse =
         productService
@@ -81,7 +80,7 @@ class ProductController(
 
     @GetMapping("/{id}/stock")
     fun checkStock(
-        @PathVariable("id") productId: UUID,
+        @PathVariable("id") productId: Long,
         @RequestParam("quantity") quantity: Long,
     ): StockCheckResponse =
         productService
@@ -203,14 +202,14 @@ class ProductController(
 }
 
 data class ProductResponse(
-    val id: UUID,
+    val id: Long,
     val name: String,
     val code: String,
     val description: String?,
     val content: String?,
     val status: String,
-    val sellerId: UUID,
-    val categoryId: UUID,
+    val sellerId: Long,
+    val categoryId: Long,
     val price: BigDecimal,
     val discountRate: BigDecimal?,
     val version: Int,
@@ -221,7 +220,7 @@ data class ProductResponse(
 )
 
 data class ProductItemResponse(
-    val id: UUID,
+    val id: Long,
     val name: String,
     val unitPrice: BigDecimal,
     val description: String?,
@@ -241,7 +240,7 @@ data class TopProductResponse(
 )
 
 data class StockCheckResponse(
-    val productId: UUID,
+    val productId: Long,
     val available: Boolean,
     val currentStock: BigDecimal,
     val requested: BigDecimal,
@@ -253,8 +252,8 @@ data class ProductUpsertRequest(
     val description: String?,
     val content: String?,
     val status: String?,
-    val sellerId: UUID,
-    val categoryId: UUID,
+    val sellerId: Long,
+    val categoryId: Long,
     val price: BigDecimal,
     val discountRate: BigDecimal?,
     val version: Int?,
@@ -262,7 +261,7 @@ data class ProductUpsertRequest(
 )
 
 data class ProductItemUpsertRequest(
-    val id: UUID?,
+    val id: Long?,
     val name: String,
     val unitPrice: BigDecimal,
     val description: String?,

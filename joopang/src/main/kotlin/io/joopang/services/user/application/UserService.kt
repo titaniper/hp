@@ -7,9 +7,10 @@ import io.joopang.services.user.domain.User
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
 import org.springframework.stereotype.Service
-import java.util.UUID
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class UserService(
     private val userRepository: UserRepository,
 ) {
@@ -18,14 +19,15 @@ class UserService(
         userRepository.findAll()
             .map { it.toOutput() }
 
-    fun getUser(id: UUID): Output =
+    fun getUser(id: Long): Output =
         userRepository.findById(id)
             ?.toOutput()
             ?: throw UserNotFoundException(id.toString())
 
+    @Transactional
     fun registerUser(command: RegisterUserCommand): Output {
         val user = User(
-            id = command.id ?: UUID.randomUUID(),
+            id = command.id ?: 0,
             email = command.email,
             password = command.password,
             firstName = command.firstName,
@@ -51,11 +53,11 @@ class UserService(
         val firstName: String?,
         val lastName: String?,
         val balance: Money?,
-        val id: UUID? = null,
+        val id: Long? = null,
     )
 
     data class Output(
-        val id: UUID,
+        val id: Long,
         val email: Email,
         val firstName: String?,
         val lastName: String?,

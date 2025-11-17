@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.math.BigDecimal
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/users")
@@ -27,7 +26,7 @@ class UserController(
 
     @GetMapping("/{id}")
     fun getUser(
-        @PathVariable id: UUID,
+        @PathVariable id: Long,
     ): UserResponse =
         userService
             .getUser(id)
@@ -68,11 +67,11 @@ data class CreateUserRequest(
     val firstName: String?,
     val lastName: String?,
     val balance: BigDecimal?,
-    val id: UUID? = null,
+    val id: Long? = null,
 )
 
 data class UserResponse(
-    val id: UUID,
+    val id: Long,
     val email: String,
     val firstName: String?,
     val lastName: String?,
