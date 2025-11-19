@@ -8,6 +8,7 @@ import io.joopang.services.delivery.domain.DeliveryNotFoundException
 import io.joopang.services.delivery.domain.DeliveryStatus
 import io.joopang.services.delivery.domain.DeliveryType
 import io.joopang.services.delivery.infrastructure.DeliveryRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -26,7 +27,7 @@ class DeliveryService(
         }.map { it.toOutput() }
 
     fun getDelivery(id: Long): Output =
-        deliveryRepository.findById(id)
+        deliveryRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw DeliveryNotFoundException(id.toString())
 

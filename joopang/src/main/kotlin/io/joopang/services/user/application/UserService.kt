@@ -6,6 +6,7 @@ import io.joopang.services.common.domain.PasswordHash
 import io.joopang.services.user.domain.User
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -20,7 +21,7 @@ class UserService(
             .map { it.toOutput() }
 
     fun getUser(id: Long): Output =
-        userRepository.findById(id)
+        userRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw UserNotFoundException(id.toString())
 

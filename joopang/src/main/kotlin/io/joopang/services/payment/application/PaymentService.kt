@@ -6,6 +6,7 @@ import io.joopang.services.payment.domain.PaymentMethod
 import io.joopang.services.payment.domain.PaymentNotFoundException
 import io.joopang.services.payment.domain.PaymentStatus
 import io.joopang.services.payment.infrastructure.PaymentRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -20,11 +21,11 @@ class PaymentService(
         if (orderId == null) {
             paymentRepository.findAll()
         } else {
-            paymentRepository.findByOrderId(orderId)
+            paymentRepository.findAllByOrderId(orderId)
         }.map { it.toOutput() }
 
     fun getPayment(id: Long): Output =
-        paymentRepository.findById(id)
+        paymentRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw PaymentNotFoundException(id.toString())
 

@@ -1,33 +1,26 @@
 package io.joopang.services.coupon.infrastructure
 
 import io.joopang.services.coupon.domain.CouponTemplate
-import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
-import jakarta.persistence.PersistenceContext
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @Repository
-class CouponTemplateRepository(
-    @PersistenceContext private val entityManager: EntityManager,
-) {
+interface CouponTemplateRepository : JpaRepository<CouponTemplate, Long> {
 
-    fun findById(templateId: Long): CouponTemplate? =
-        entityManager.find(CouponTemplate::class.java, templateId)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select ct from CouponTemplate ct where ct.id = :templateId")
+    fun findByIdForUpdate(@Param("templateId") templateId: Long): CouponTemplate?
 
-    fun findByIdForUpdate(templateId: Long): CouponTemplate? =
-        entityManager.find(CouponTemplate::class.java, templateId, LockModeType.PESSIMISTIC_WRITE)
-
-    fun save(template: CouponTemplate): CouponTemplate =
-        entityManager.merge(template)
-
-    fun incrementIssuedQuantity(templateId: Long): Boolean =
-        entityManager.createNativeQuery(
-            """
-                update coupon_templates
-                set issued_quantity = issued_quantity + 1
-                where id = :templateId and issued_quantity < total_quantity
-            """.trimIndent(),
-        )
-            .setParameter("templateId", templateId)
-            .executeUpdate() == 1
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        "update CouponTemplate ct " +
+            "set ct.issuedQuantity = ct.issuedQuantity + 1 " +
+            "where ct.id = :templateId and ct.issuedQuantity < ct.totalQuantity",
+    )
+    fun incrementIssuedQuantity(@Param("templateId") templateId: Long): Int
 }

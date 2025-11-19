@@ -35,9 +35,6 @@ class OrderItem(
     @Column(columnDefinition = "BIGINT")
     var id: Long = 0,
 
-    @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
-    var orderId: Long? = null,
-
     @Column(name = "product_id", columnDefinition = "BIGINT")
     var productId: Long? = null,
 
@@ -61,16 +58,15 @@ class OrderItem(
 
     @Column(name = "refunded_quantity", nullable = false)
     var refundedQuantity: Quantity = Quantity(0),
-) {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
         name = "order_id",
-        insertable = false,
-        updatable = false,
+        nullable = false,
         foreignKey = ForeignKey(ConstraintMode.NO_CONSTRAINT),
     )
-    var order: Order? = null
+    var order: Order? = null,
+) {
 
     init {
         if (id != 0L || productName.isNotBlank()) {
@@ -92,7 +88,6 @@ class OrderItem(
     @Suppress("unused")
     constructor() : this(
         id = 0,
-        orderId = null,
         productId = null,
         productItemId = null,
         productName = "",
@@ -105,7 +100,6 @@ class OrderItem(
 
     fun copy(
         id: Long = this.id,
-        orderId: Long? = this.orderId,
         productId: Long? = this.productId,
         productItemId: Long? = this.productItemId,
         productName: String = this.productName,
@@ -117,7 +111,6 @@ class OrderItem(
     ): OrderItem =
         OrderItem(
             id = id,
-            orderId = orderId,
             productId = productId,
             productItemId = productItemId,
             productName = productName,
@@ -126,5 +119,7 @@ class OrderItem(
             subtotal = subtotal,
             refundedAmount = refundedAmount,
             refundedQuantity = refundedQuantity,
-        )
+        ).also {
+            it.order = order
+        }
 }

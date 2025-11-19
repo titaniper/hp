@@ -10,7 +10,6 @@ class OrderItemTest {
 
     private fun item(quantity: Int = 2): OrderItem =
         OrderItem(
-            orderId = 1L,
             productId = 2L,
             productItemId = 3L,
             productName = "상품",

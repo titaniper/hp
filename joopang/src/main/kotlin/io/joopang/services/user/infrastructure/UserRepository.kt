@@ -1,26 +1,17 @@
 package io.joopang.services.user.infrastructure
 
 import io.joopang.services.user.domain.User
-import jakarta.persistence.EntityManager
 import jakarta.persistence.LockModeType
-import jakarta.persistence.PersistenceContext
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @Repository
-class UserRepository(
-    @PersistenceContext private val entityManager: EntityManager,
-) {
+interface UserRepository : JpaRepository<User, Long> {
 
-    fun findById(userId: Long): User? =
-        entityManager.find(User::class.java, userId)
-
-    fun findByIdForUpdate(userId: Long): User? =
-        entityManager.find(User::class.java, userId, LockModeType.PESSIMISTIC_WRITE)
-
-    fun findAll(): List<User> =
-        entityManager.createQuery("select u from User u", User::class.java)
-            .resultList
-
-    fun save(user: User): User =
-        entityManager.merge(user)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :userId")
+    fun findByIdForUpdate(@Param("userId") userId: Long): User?
 }

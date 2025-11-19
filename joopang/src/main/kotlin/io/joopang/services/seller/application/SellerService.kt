@@ -4,6 +4,7 @@ import io.joopang.services.seller.domain.Seller
 import io.joopang.services.seller.domain.SellerNotFoundException
 import io.joopang.services.seller.domain.SellerType
 import io.joopang.services.seller.infrastructure.SellerRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,7 +19,7 @@ class SellerService(
             .map { it.toOutput() }
 
     fun getSeller(id: Long): Output =
-        sellerRepository.findById(id)
+        sellerRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw SellerNotFoundException(id.toString())
 

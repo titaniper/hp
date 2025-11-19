@@ -7,6 +7,7 @@ import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
 import io.joopang.services.user.infrastructure.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -33,7 +34,7 @@ class OrderServiceIntegrationTest @Autowired constructor(
     fun prepareFixtures() {
         inTransaction {
             orderRepository.deleteAll()
-            val user = userRepository.findById(userId)!!
+            val user = userRepository.findByIdOrNull(userId)!!
             userRepository.save(user.copy(balance = Money.of(10_000_000L)))
 
             val aggregate = productRepository.findById(productId)!!

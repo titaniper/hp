@@ -8,6 +8,7 @@ import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.infrastructure.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -92,10 +93,10 @@ class CouponServiceIntegrationTest @Autowired constructor(
         doneLatch.await(5, TimeUnit.SECONDS)
         executor.shutdownNow()
 
-        val template = couponTemplateRepository.findById(templateId)!!
+        val template = couponTemplateRepository.findByIdOrNull(templateId)!!
         assertThat(successes).hasSize(5)
         successes.forEach { couponId ->
-            assertThat(couponRepository.findById(couponId)).isNotNull
+            assertThat(couponRepository.findByIdOrNull(couponId)).isNotNull
         }
         assertThat(template.issuedQuantity).isEqualTo(5)
         assertThat(failures).isNotEmpty()

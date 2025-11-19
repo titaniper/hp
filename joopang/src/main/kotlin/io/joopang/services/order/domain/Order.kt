@@ -3,6 +3,7 @@ package io.joopang.services.order.domain
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.infrastructure.jpa.OrderMonthAttributeConverter
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Convert
 import jakarta.persistence.Entity
@@ -70,8 +71,21 @@ class Order(
     var memo: String? = null,
 ) {
 
-    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    @OneToMany(
+        mappedBy = "order",
+        fetch = FetchType.LAZY,
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+    )
     val items: MutableList<OrderItem> = mutableListOf()
+
+    @OneToMany(
+        mappedBy = "order",
+        fetch = FetchType.LAZY,
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+    )
+    val discounts: MutableList<OrderDiscount> = mutableListOf()
 
     init {
         if (id != 0L || recipientName.isNotBlank()) {
@@ -86,8 +100,18 @@ class Order(
 
     fun canPay(): Boolean = status == OrderStatus.PENDING
 
-    fun markPaid(paidTimestamp: Instant): Order =
-        copy(status = OrderStatus.PAID, paidAt = paidTimestamp)
+    fun markPaid(paidTimestamp: Instant) {
+        status = OrderStatus.PAID
+        paidAt = paidTimestamp
+    }
+
+    fun addItem(item: OrderItem) {
+        items += item.also { it.order = this }
+    }
+
+    fun addDiscount(discount: OrderDiscount) {
+        discounts += discount.also { it.order = this }
+    }
 
     @Suppress("unused")
     constructor() : this(
@@ -104,30 +128,4 @@ class Order(
         memo = null,
     )
 
-    fun copy(
-        id: Long = this.id,
-        userId: Long = this.userId,
-        imageUrl: String? = this.imageUrl,
-        status: OrderStatus = this.status,
-        recipientName: String = this.recipientName,
-        orderMonth: OrderMonth = this.orderMonth,
-        totalAmount: Money = this.totalAmount,
-        discountAmount: Money = this.discountAmount,
-        orderedAt: Instant = this.orderedAt,
-        paidAt: Instant? = this.paidAt,
-        memo: String? = this.memo,
-    ): Order =
-        Order(
-            id = id,
-            userId = userId,
-            imageUrl = imageUrl,
-            status = status,
-            recipientName = recipientName,
-            orderMonth = orderMonth,
-            totalAmount = totalAmount,
-            discountAmount = discountAmount,
-            orderedAt = orderedAt,
-            paidAt = paidAt,
-            memo = memo,
-        )
 }

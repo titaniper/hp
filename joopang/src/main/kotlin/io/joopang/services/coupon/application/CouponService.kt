@@ -7,6 +7,7 @@ import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -24,33 +25,33 @@ class CouponService(
 
     @Transactional
     fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
-        val user = userRepository.findById(command.userId)
+        val user = userRepository.findByIdOrNull(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
-        val userId = user.id ?: throw IllegalStateException("User id is null")
+        val userId = user.id
 
         return couponLockManager.withTemplateLock(command.couponTemplateId) {
             val template = couponTemplateRepository.findByIdForUpdate(command.couponTemplateId)
                 ?: throw IllegalStateException("쿠폰 템플릿을 찾을 수 없습니다")
-            val templateId = template.id ?: throw IllegalStateException("쿠폰 템플릿 ID가 없습니다")
+            val templateId = template.id
 
             val now = Instant.now()
             if (!template.canIssue(now)) {
                 throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
             }
 
-            val existingCoupon = couponRepository.findUserCouponByTemplate(userId, templateId)
+            val existingCoupon = couponRepository.findByUserIdAndCouponTemplateId(userId, templateId)
                 ?.takeIf { it.status == CouponStatus.AVAILABLE }
             if (existingCoupon != null) {
                 throw IllegalStateException("이미 발급받은 쿠폰입니다")
             }
 
-            val userCoupons = couponRepository.findUserCoupons(userId)
+            val userCoupons = couponRepository.findAllByUserId(userId)
             val issuedCount = userCoupons.count { it.couponTemplateId == templateId }
             if (!template.canIssueForUser(issuedCount)) {
                 throw IllegalStateException("해당 쿠폰 템플릿은 이미 최대 발급 수량에 도달했습니다")
             }
 
-            val updated = couponTemplateRepository.incrementIssuedQuantity(templateId)
+            val updated = couponTemplateRepository.incrementIssuedQuantity(templateId) > 0
             if (!updated) {
                 throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
             }
@@ -79,12 +80,12 @@ class CouponService(
 
     @Transactional
     fun getUserCoupons(userId: Long): List<Output> {
-        val user = userRepository.findById(userId)
+        val user = userRepository.findByIdOrNull(userId)
             ?: throw UserNotFoundException(userId.toString())
-        val persistedUserId = user.id ?: throw IllegalStateException("User id is null")
+        val persistedUserId = user.id
 
         val now = Instant.now()
-        return couponRepository.findUserCoupons(persistedUserId)
+        return couponRepository.findAllByUserId(persistedUserId)
             .map { coupon ->
                 val shouldExpire = coupon.status == CouponStatus.AVAILABLE &&
                     coupon.expiredAt?.let { now.isAfter(it) } == true
