@@ -1,0 +1,32 @@
+{
+  "baseUrl": "https://staging-api.joopang.internal",
+  "headers": {
+    "accept-language": "ko-KR",
+    "x-market": "KR",
+    "authorization": "Bearer <replace-with-token>"
+  },
+  "defaults": {
+    "thinkTime": 0.5,
+    "productId": "P1001",
+    "cartSession": "sess-staging"
+  },
+  "thresholds": {
+    "http_req_duration": ["p(95)<250", "p(99)<400"],
+    "checks": ["rate>0.995"],
+    "http_req_failed": ["rate<0.01"]
+  },
+  "scenarios": {
+    "smoke": {
+      "vus": 2,
+      "duration": "1m"
+    },
+    "load": {
+      "stages": [
+        { "duration": "2m", "target": 20 },
+        { "duration": "5m", "target": 80 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "rampDownGracePeriod": "1m"
+    }
+  }
+}
