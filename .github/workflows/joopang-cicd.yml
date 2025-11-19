@@ -1,0 +1,129 @@
+name: Joopang CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'joopang/src/**'
+      - '.github/workflows/joopang-cicd.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  determine-env:
+    name: Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      spring_profile: ${{ steps.detect.outputs.spring_profile }}
+      deploy_env: ${{ steps.detect.outputs.deploy_env }}
+      docker_image: ${{ steps.detect.outputs.docker_image }}
+    steps:
+      - name: Map branch to environment
+        id: detect
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          if [[ "$BRANCH" == "main" ]]; then
+            echo "spring_profile=prod" >> "$GITHUB_OUTPUT"
+            echo "deploy_env=prod" >> "$GITHUB_OUTPUT"
+            echo "docker_image=devjyk/joopang-prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "spring_profile=stage" >> "$GITHUB_OUTPUT"
+            echo "deploy_env=stage" >> "$GITHUB_OUTPUT"
+            echo "docker_image=devjyk/joopang-stage" >> "$GITHUB_OUTPUT"
+          fi
+
+  tests:
+    name: Unit & Integration Tests
+    needs: determine-env
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: joopang
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew unitTest --stacktrace
+
+      - name: Run integration tests
+        env:
+          SPRING_PROFILES_ACTIVE: test
+        run: ./gradlew integrationTest --stacktrace
+
+  flyway-and-deploy:
+    name: Flyway & Docker Deploy
+    needs: [determine-env, tests]
+    runs-on: ubuntu-latest
+    env:
+      SPRING_PROFILE: ${{ needs.determine-env.outputs.spring_profile }}
+      DOCKER_IMAGE: ${{ needs.determine-env.outputs.docker_image }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        working-directory: joopang
+        run: chmod +x gradlew
+
+      - name: Configure database secrets
+        run: |
+          if [[ "${{ needs.determine-env.outputs.deploy_env }}" == "prod" ]]; then
+            echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> $GITHUB_ENV
+            echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> $GITHUB_ENV
+            echo "DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}" >> $GITHUB_ENV
+          else
+            echo "DB_URL=${{ secrets.STAGE_DB_URL }}" >> $GITHUB_ENV
+            echo "DB_USERNAME=${{ secrets.STAGE_DB_USERNAME }}" >> $GITHUB_ENV
+            echo "DB_PASSWORD=${{ secrets.STAGE_DB_PASSWORD }}" >> $GITHUB_ENV
+          fi
+
+      - name: Apply Flyway migrations
+        working-directory: joopang
+        env:
+          SPRING_PROFILES_ACTIVE: ${{ env.SPRING_PROFILE }}
+          DB_URL: ${{ env.DB_URL }}
+          DB_USERNAME: ${{ env.DB_USERNAME }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+        run: ./gradlew flywayMigrate --stacktrace
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: joopang
+          file: joopang/Dockerfile
+          push: true
+          build-args: |
+            SPRING_PROFILE=${{ env.SPRING_PROFILE }}
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+            ${{ env.DOCKER_IMAGE }}:latest
