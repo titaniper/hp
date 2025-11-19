@@ -7,7 +7,12 @@
   "defaults": {
     "thinkTime": 1,
     "productId": "P001",
-    "cartSession": "sess-local"
+    "cartSession": "sess-local",
+    "rushCouponTemplateId": 900,
+    "rushProductId": 1000,
+    "rushProductItemId": 1500,
+    "rushUserStart": 1000,
+    "rushUserCount": 2000
   },
   "thresholds": {
     "http_req_duration": ["p(95)<350"],
@@ -25,6 +30,10 @@
         { "duration": "1m", "target": 0 }
       ],
       "rampDownGracePeriod": "30s"
+    },
+    "rush": {
+      "vus": 2000,
+      "maxDuration": "5m"
     }
   }
 }

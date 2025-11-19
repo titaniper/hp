@@ -1,10 +1,12 @@
 import { fail } from 'k6';
 import * as smoke from './scenarios/smoke.js';
 import * as load from './scenarios/load.js';
+import * as rush from './scenarios/rush.js';
 
 const scenarios = {
   smoke,
-  load
+  load,
+  rush
 };
 
 const scenarioName = (__ENV.SCENARIO || 'smoke').toLowerCase();

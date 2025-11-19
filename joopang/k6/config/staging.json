@@ -8,7 +8,12 @@
   "defaults": {
     "thinkTime": 0.5,
     "productId": "P1001",
-    "cartSession": "sess-staging"
+    "cartSession": "sess-staging",
+    "rushCouponTemplateId": 900,
+    "rushProductId": 1000,
+    "rushProductItemId": 1500,
+    "rushUserStart": 1000,
+    "rushUserCount": 2000
   },
   "thresholds": {
     "http_req_duration": ["p(95)<250", "p(99)<400"],
@@ -27,6 +32,10 @@
         { "duration": "2m", "target": 0 }
       ],
       "rampDownGracePeriod": "1m"
+    },
+    "rush": {
+      "vus": 2000,
+      "maxDuration": "5m"
     }
   }
 }

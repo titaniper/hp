@@ -1,4 +1,13 @@
+# 설치
+```
+brew install k6
+
+```
+
+
+
 # k6 Performance Tests
+
 
 이 디렉터리는 주팡 API를 대상으로 한 k6 시나리오를 한 곳에서 관리할 수 있도록 구성돼 있습니다. 다음과 같이 구조화돼 있습니다.
 
@@ -34,9 +43,37 @@ k6/
 
    # load 시나리오
    SCENARIO=load K6_ENV=local k6 run k6/main.js
+
+   # 2,000명 동시 러시 (쿠폰 → 주문)
+   SCENARIO=rush K6_ENV=local k6 run k6/main.js
+   # 필요 시 가변: RUSH_VUS=2500 RUSH_MAX_DURATION=3m SCENARIO=rush K6_ENV=local k6 run k6/main.js
    ```
    - `SCENARIO`: `k6/scenarios` 디렉터리의 파일명과 매칭됩니다.
    - `K6_ENV`: `k6/config/<env>.json` 을 선택합니다 (기본값 `local`).
+   - `SCENARIO=rush` 실행 전 `./gradlew flywayMigrate -Pspring.profiles.active=local` 로 V3 시드 데이터를 적용해 사용자/쿠폰/상품을 준비하세요.
+
+
+
+### 실행 방법 2
+ 1. DB 준비
+     docker-compose up -d mysql (또는 직접 MySQL을 띄운 뒤) build.gradle.kts의 local 프로파일 환경변수(DB_URL 등 기본값 사용)를 그대로 써도 됩니다.
+  2. 스키마+러시 데이터 적재
+     앱 루트에서 ./gradlew flywayMigrate -Pspring.profiles.active=local 을 실행하면 V1~V3까지 적용돼 러시용 상품/쿠폰/사용자(1000~2999)가 채워집니다.
+  3. 애플리케이션 실행
+     SPRING_PROFILES_ACTIVE=local ./gradlew bootRun 으로 서버를 띄워 http://localhost:8080 에서 API가 응답하도록 합니다.
+  4. k6 러시 시나리오 실행
+     다른 터미널에서:
+
+     SCENARIO=rush K6_ENV=local k6 run k6/main.js
+
+     필요하면 RUSH_VUS(동시 사용자 수)와 RUSH_MAX_DURATION을 환경변수로 덮어쓸 수 있습니다.
+
+
+
+4. QPS/TPS 측정
+   - k6 요약에 `http_reqs.............: 4000  2000/s` 형태로 초당 처리량이 표기됩니다.
+   - `--summary-trend-stats "avg,min,med,p(90),p(95),p(99)"` 옵션을 추가하면 응답시간 퍼센타일을 더 자세히 확인할 수 있습니다.
+   - 커스텀 메트릭(`coupon_issue_duration`, `order_creation_duration`)은 InfluxDB/Cloud 출력 시 별도 시계열로 집계됩니다.
 
 - smoke: 아주 가벼운 확인용 시나리오입니다. 1 VU·30초 정도로 핵심 엔드포인트만 순회해 “서비스가 살아 있고 주요 플로우가 응답한다”는 걸 빠르게 확인하는 데 쓰입니다. 장애 감지나 배포 직후 헬스 체
     크용에 적합합니다.

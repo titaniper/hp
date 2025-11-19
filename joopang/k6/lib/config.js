@@ -20,6 +20,11 @@ export const config = {
     thinkTime: 1,
     productId: 'P001',
     cartSession: 'smoke-session',
+    rushCouponTemplateId: 900,
+    rushProductId: 1000,
+    rushProductItemId: 1500,
+    rushUserStart: 1000,
+    rushUserCount: 2000,
     ...(loaded?.defaults || {})
   },
   scenarios: loaded?.scenarios || {},
