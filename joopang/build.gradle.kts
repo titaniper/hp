@@ -126,3 +126,16 @@ tasks.register<Test>("unitTest") {
         systemProperty("spring.profiles.active", "test")
     }
 }
+
+tasks.register<Test>("integrationTest") {
+    description = "Runs only integration tests tagged with @Tag(\"integration\")."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = testSourceSet.get().output.classesDirs
+    classpath = testSourceSet.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
+        systemProperty("spring.profiles.active", "test")
+    }
+}
