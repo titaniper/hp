@@ -6,12 +6,14 @@ import io.joopang.services.common.infrastructure.jpa.OrderMonthAttributeConverte
 import jakarta.persistence.Column
 import jakarta.persistence.Convert
 import jakarta.persistence.Entity
-import jakarta.persistence.Index
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
+import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import java.time.Instant
 
@@ -67,6 +69,9 @@ class Order(
     @Column(columnDefinition = "TEXT")
     var memo: String? = null,
 ) {
+
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    val items: MutableList<OrderItem> = mutableListOf()
 
     init {
         if (id != 0L || recipientName.isNotBlank()) {
