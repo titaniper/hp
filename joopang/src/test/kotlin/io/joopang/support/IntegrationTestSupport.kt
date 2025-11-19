@@ -1,5 +1,6 @@
 package io.joopang.support
 
+import org.junit.jupiter.api.Tag
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
@@ -10,6 +11,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 
 @Testcontainers
 @ActiveProfiles("test")
+@Tag("integration")
 abstract class IntegrationTestSupport {
     @Autowired
     protected lateinit var transactionTemplate: TransactionTemplate
