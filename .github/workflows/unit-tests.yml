@@ -3,6 +3,8 @@ name: Unit Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'joopang/src/**'
 
 jobs:
   unit-tests:
