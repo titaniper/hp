@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.testing.Test
+import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -107,4 +110,19 @@ tasks.jacocoTestReport {
 
 tasks.test {
     finalizedBy(tasks.jacocoTestReport)
+}
+
+val testSourceSet = extensions.getByType(SourceSetContainer::class.java).named("test")
+
+tasks.register<Test>("unitTest") {
+    description = "Runs unit tests only (excludes integration tests)."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = testSourceSet.get().output.classesDirs
+    classpath = testSourceSet.get().runtimeClasspath
+    useJUnitPlatform {
+        excludeTags("integration")
+    }
+    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
+        systemProperty("spring.profiles.active", "test")
+    }
 }
