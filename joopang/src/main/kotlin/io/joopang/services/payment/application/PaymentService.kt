@@ -1,6 +1,7 @@
 package io.joopang.services.payment.application
 
 import io.joopang.services.common.domain.Money
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.payment.domain.Payment
 import io.joopang.services.payment.domain.PaymentMethod
 import io.joopang.services.payment.domain.PaymentNotFoundException
@@ -32,7 +33,7 @@ class PaymentService(
     @Transactional
     fun registerPayment(command: RegisterPaymentCommand): Output {
         val payment = Payment(
-            id = command.id ?: 0,
+            id = command.id,
             orderId = command.orderId,
             paymentGateway = command.paymentGateway,
             paymentMethod = command.paymentMethod,
@@ -50,7 +51,7 @@ class PaymentService(
 
     private fun Payment.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             orderId = orderId,
             paymentGateway = paymentGateway,
             paymentMethod = paymentMethod,

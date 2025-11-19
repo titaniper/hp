@@ -1,5 +1,6 @@
 package io.joopang.services.coupon.application
 
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponStatus
 import io.joopang.services.coupon.domain.CouponType
@@ -27,12 +28,12 @@ class CouponService(
     fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
         val user = userRepository.findByIdOrNull(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
-        val userId = user.id
+        val userId = user.requireId()
 
         return couponLockManager.withTemplateLock(command.couponTemplateId) {
             val template = couponTemplateRepository.findByIdForUpdate(command.couponTemplateId)
                 ?: throw IllegalStateException("쿠폰 템플릿을 찾을 수 없습니다")
-            val templateId = template.id
+            val templateId = template.requireId()
 
             val now = Instant.now()
             if (!template.canIssue(now)) {
@@ -82,7 +83,7 @@ class CouponService(
     fun getUserCoupons(userId: Long): List<Output> {
         val user = userRepository.findByIdOrNull(userId)
             ?: throw UserNotFoundException(userId.toString())
-        val persistedUserId = user.id
+        val persistedUserId = user.requireId()
 
         val now = Instant.now()
         return couponRepository.findAllByUserId(persistedUserId)
@@ -102,7 +103,7 @@ class CouponService(
 
     private fun Coupon.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             couponTemplateId = couponTemplateId,
             type = type,
             value = value,

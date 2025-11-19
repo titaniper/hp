@@ -1,6 +1,7 @@
 package io.joopang.services.delivery.domain
 
 import io.joopang.services.common.domain.Address
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.PhoneNumber
 import jakarta.persistence.Column
@@ -9,9 +10,6 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
 
@@ -26,11 +24,7 @@ import java.time.LocalDate
     ],
 )
 class Delivery(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "order_item_id", columnDefinition = "BIGINT", nullable = false)
     var orderItemId: Long = 0,
 
@@ -56,7 +50,7 @@ class Delivery(
 
     @Column(name = "delivery_fee", precision = 19, scale = 2, nullable = false)
     var deliveryFee: Money = Money.ZERO,
-) {
+) : BaseEntity(id) {
 
     init {
         require(deliveryFee >= Money.ZERO) { "Delivery fee cannot be negative" }
@@ -64,7 +58,7 @@ class Delivery(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         orderItemId = 0,
         type = DeliveryType.DIRECT_DELIVERY,
         address = Address(),

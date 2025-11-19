@@ -1,5 +1,6 @@
 package io.joopang.services.seller.application
 
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.seller.domain.Seller
 import io.joopang.services.seller.domain.SellerNotFoundException
 import io.joopang.services.seller.domain.SellerType
@@ -26,7 +27,7 @@ class SellerService(
     @Transactional
     fun registerSeller(command: RegisterSellerCommand): Output {
         val seller = Seller(
-            id = command.id ?: 0,
+            id = command.id,
             name = command.name,
             type = command.type,
             ownerId = command.ownerId,
@@ -36,7 +37,7 @@ class SellerService(
 
     private fun Seller.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             name = name,
             type = type,
             ownerId = ownerId,

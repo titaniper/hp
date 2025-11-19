@@ -48,7 +48,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
             startAt = Instant.now().minusSeconds(60),
             endAt = Instant.now().plusSeconds(300),
         )
-        templateId = inTransaction { couponTemplateRepository.save(template).id }
+        templateId = inTransaction { couponTemplateRepository.save(template).id!! }
     }
 
     @Test
@@ -67,7 +67,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
                     val baseUser = userRepository.findAll().first()
                     userRepository.save(
                         baseUser.copy(
-                            id = 0,
+                            id = null,
                             email = Email("coupon-${System.nanoTime()}@joopang.com"),
                         ),
                     )
@@ -77,7 +77,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
                     val result = couponService.issueCoupon(
                         CouponService.IssueCouponCommand(
                             couponTemplateId = templateId,
-                            userId = user.id,
+                            userId = user.id!!,
                         ),
                     )
                     successes += result.coupon.id

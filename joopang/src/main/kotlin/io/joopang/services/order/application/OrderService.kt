@@ -3,6 +3,7 @@ package io.joopang.services.order.application
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.domain.Quantity
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponNotFoundException
 import io.joopang.services.coupon.domain.CouponStatus
@@ -52,7 +53,7 @@ class OrderService(
     fun createOrder(command: CreateOrderCommand): Output {
         val user = userRepository.findByIdOrNull(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
-        val userId = user.id
+        val userId = user.requireId()
         val now = Instant.now()
         val orderMonth = toOrderMonth(now, command.zoneId)
 
@@ -78,7 +79,7 @@ class OrderService(
                         type = OrderDiscountType.COUPON,
                         referenceId = result.coupon.couponTemplateId,
                         price = result.discountAmount,
-                        couponId = result.coupon.id,
+                        couponId = result.coupon.requireId(),
                     ),
                 )
             } ?: emptyList()
@@ -131,11 +132,11 @@ class OrderService(
         }
         if (!order.canPay()) {
             throw OrderPaymentNotAllowedException(
-                order.id.toString(),
+                (order.id ?: command.orderId).toString(),
                 order.status,
             )
         }
-        val orderId = order.id
+        val orderId = order.id ?: command.orderId
 
         val user = userRepository.findByIdForUpdate(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
@@ -292,7 +293,7 @@ class OrderService(
 
     private fun Order.toOutput(): Output =
         Output(
-            orderId = id,
+            orderId = requireId(),
             userId = userId,
             status = status,
             recipientName = recipientName,
@@ -310,7 +311,7 @@ class OrderService(
 
     private fun OrderItem.toOutput(): Output.Item =
         Output.Item(
-            orderItemId = id,
+            orderItemId = requireId(),
             productId = productId,
             productItemId = productItemId,
             productName = productName,
@@ -323,7 +324,7 @@ class OrderService(
 
     private fun OrderDiscount.toOutput(): Output.Discount =
         Output.Discount(
-            discountId = id,
+            discountId = requireId(),
             type = type,
             referenceId = referenceId,
             amount = price,

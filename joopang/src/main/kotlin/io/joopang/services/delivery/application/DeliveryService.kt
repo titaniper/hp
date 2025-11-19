@@ -3,6 +3,7 @@ package io.joopang.services.delivery.application
 import io.joopang.services.common.domain.Address
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.PhoneNumber
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.delivery.domain.Delivery
 import io.joopang.services.delivery.domain.DeliveryNotFoundException
 import io.joopang.services.delivery.domain.DeliveryStatus
@@ -34,7 +35,7 @@ class DeliveryService(
     @Transactional
     fun registerDelivery(command: RegisterDeliveryCommand): Output {
         val delivery = Delivery(
-            id = command.id ?: 0,
+            id = command.id,
             orderItemId = command.orderItemId,
             type = command.type,
             address = command.address,
@@ -49,7 +50,7 @@ class DeliveryService(
 
     private fun Delivery.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             orderItemId = orderItemId,
             type = type,
             address = address,

@@ -94,18 +94,18 @@ class CouponServiceTest @Autowired constructor(
             startAt = Instant.now().minusSeconds(60),
             endAt = Instant.now().plusSeconds(3600),
         )
-        return inTransaction { couponTemplateRepository.save(template).id }
+        return inTransaction { couponTemplateRepository.save(template).id!! }
     }
 
     private fun createUser(): Long {
         val user = User(
-            id = 0,
+            id = null,
             email = Email("tester-${System.nanoTime()}@joopang.com"),
             password = PasswordHash("hash-${System.nanoTime()}"),
             firstName = "Tester",
             lastName = "User",
             balance = Money.of(100_000L),
         )
-        return inTransaction { userRepository.save(user).id }
+        return inTransaction { userRepository.save(user).id!! }
     }
 }

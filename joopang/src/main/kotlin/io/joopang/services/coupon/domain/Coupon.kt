@@ -1,12 +1,10 @@
 package io.joopang.services.coupon.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import java.math.BigDecimal
@@ -23,11 +21,7 @@ import java.time.Instant
     ],
 )
 class Coupon(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "user_id", columnDefinition = "BIGINT", nullable = false)
     var userId: Long = 0,
 
@@ -56,7 +50,7 @@ class Coupon(
 
     @Column(name = "order_id", columnDefinition = "BIGINT")
     var orderId: Long? = null,
-) {
+) : BaseEntity(id) {
 
     init {
         require(value >= BigDecimal.ZERO) { "Coupon value cannot be negative" }
@@ -81,7 +75,7 @@ class Coupon(
         if (status == CouponStatus.EXPIRED) this else copy(status = CouponStatus.EXPIRED)
 
     fun copy(
-        id: Long = this.id,
+        id: Long? = this.id,
         userId: Long = this.userId,
         couponTemplateId: Long? = this.couponTemplateId,
         type: CouponType = this.type,
@@ -107,7 +101,7 @@ class Coupon(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         userId = 0,
         couponTemplateId = null,
         type = CouponType.AMOUNT,

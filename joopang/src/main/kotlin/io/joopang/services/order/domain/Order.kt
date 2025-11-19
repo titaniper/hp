@@ -1,5 +1,6 @@
 package io.joopang.services.order.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.infrastructure.jpa.OrderMonthAttributeConverter
@@ -10,9 +11,6 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
@@ -33,11 +31,7 @@ import java.time.Instant
     ],
 )
 class Order(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "user_id", columnDefinition = "BIGINT", nullable = false)
     var userId: Long = 0,
 
@@ -69,7 +63,7 @@ class Order(
 
     @Column(columnDefinition = "TEXT")
     var memo: String? = null,
-) {
+) : BaseEntity(id) {
 
     @OneToMany(
         mappedBy = "order",
@@ -88,7 +82,7 @@ class Order(
     val discounts: MutableList<OrderDiscount> = mutableListOf()
 
     init {
-        if (id != 0L || recipientName.isNotBlank()) {
+        if (id != null || recipientName.isNotBlank()) {
             require(recipientName.isNotBlank()) { "Recipient name must not be blank" }
             require(totalAmount >= Money.ZERO) { "Total amount cannot be negative" }
             require(discountAmount >= Money.ZERO) { "Discount amount cannot be negative" }
@@ -115,7 +109,7 @@ class Order(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         userId = 0,
         imageUrl = null,
         status = OrderStatus.PENDING,

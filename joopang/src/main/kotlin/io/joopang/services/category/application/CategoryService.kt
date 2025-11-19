@@ -4,6 +4,7 @@ import io.joopang.services.category.domain.Category
 import io.joopang.services.category.domain.CategoryNotFoundException
 import io.joopang.services.category.domain.CategoryStatus
 import io.joopang.services.category.infrastructure.CategoryRepository
+import io.joopang.services.common.domain.requireId
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -34,7 +35,7 @@ class CategoryService(
         }
 
         val category = Category(
-            id = command.id ?: 0,
+            id = command.id,
             level = parent?.let { it.level + 1 } ?: 0,
             name = command.name,
             status = CategoryStatus(command.status),
@@ -46,7 +47,7 @@ class CategoryService(
 
     private fun Category.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             level = level,
             name = name,
             status = status,

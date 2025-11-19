@@ -1,11 +1,9 @@
 package io.joopang.services.cart.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Quantity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 
@@ -21,11 +19,7 @@ import jakarta.persistence.Table
     ],
 )
 class CartItem(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "user_id", columnDefinition = "BIGINT", nullable = false)
     var userId: Long = 0,
 
@@ -37,11 +31,11 @@ class CartItem(
 
     @Column(name = "quantity", nullable = false)
     var quantity: Quantity = Quantity(0),
-) {
+) : BaseEntity(id) {
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         userId = 0,
         productId = 0,
         productItemId = 0,
@@ -49,7 +43,7 @@ class CartItem(
     )
 
     fun copy(
-        id: Long = this.id,
+        id: Long? = this.id,
         userId: Long = this.userId,
         productId: Long = this.productId,
         productItemId: Long = this.productItemId,

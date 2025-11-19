@@ -3,6 +3,7 @@ package io.joopang.services.user.application
 import io.joopang.services.common.domain.Email
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.PasswordHash
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.user.domain.User
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
@@ -28,7 +29,7 @@ class UserService(
     @Transactional
     fun registerUser(command: RegisterUserCommand): Output {
         val user = User(
-            id = command.id ?: 0,
+            id = command.id,
             email = command.email,
             password = command.password,
             firstName = command.firstName,
@@ -40,7 +41,7 @@ class UserService(
 
     private fun User.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             email = email,
             firstName = firstName,
             lastName = lastName,

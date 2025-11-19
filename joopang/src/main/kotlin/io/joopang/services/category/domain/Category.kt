@@ -1,11 +1,9 @@
 package io.joopang.services.category.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 
 @Entity
@@ -19,11 +17,7 @@ import jakarta.persistence.Table
     ],
 )
 class Category(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(nullable = false)
     var level: Int = 0,
 
@@ -35,9 +29,9 @@ class Category(
 
     @Column(name = "parent_id", columnDefinition = "BIGINT")
     var parentId: Long? = null,
-) {
+) : BaseEntity(id) {
     init {
-        if (id != 0L || name.isNotBlank()) {
+        if (id != null || name.isNotBlank()) {
             require(level >= 0) { "Category level must be non-negative" }
             require(name.isNotBlank()) { "Category name must not be blank" }
         }
@@ -47,7 +41,7 @@ class Category(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         level = 0,
         name = "",
         status = CategoryStatus("DRAFT"),
