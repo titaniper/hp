@@ -5,9 +5,8 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
     show-sql: false
-    defer-datasource-initialization: true
     properties:
       hibernate:
         format_sql: true
@@ -15,12 +14,11 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         jdbc.time_zone: UTC
         type.preferred_uuid_jdbc_type: CHAR
-  sql:
-    init:
-      mode: always
-      encoding: UTF-8
-      data-locations:
-        - classpath:data.sql
+  flyway:
+    enabled: true
+    locations:
+      - classpath:db/migration
+    clean-disabled: false
 
 logging:
   level:
