@@ -7,6 +7,9 @@ on:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: joopang
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
