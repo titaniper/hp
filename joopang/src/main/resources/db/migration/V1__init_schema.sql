@@ -142,7 +142,7 @@ CREATE TABLE order_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE order_discounts (
-    id BIGINT NOT NOT NULL,
+    id BIGINT NOT NULL,
     order_id BIGINT NOT NULL,
     type ENUM('POINT', 'COUPON') NOT NULL,
     reference_id BIGINT,
