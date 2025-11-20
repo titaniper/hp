@@ -255,7 +255,13 @@ flyway migrate
 
 
 ```
-flyway clean && flyway migrate 또는 flyway repair 후 flyway migrate로 다시 적용해 주세요.
+# Flyway 11부터는 명시적으로 cleanDisabled=false를 설정해야 실행됩니다. 지금 flyway.conf에는 clean 관련 설정이 없으므로, CLI가 내부 기본값(true)을 그대로 읽어
+  “clean이 비활성화돼 있다”는 메시지를 띄운 겁니다. 로컬 DB를 초기화하려면 다음 둘 중 한 방법을 사용하세요.
+flyway -cleanDisabled=false clean 
+flyway migrate
+
+
+ 또는 flyway repair 후 flyway migrate로 다시 적용해 주세요.
 
   ./gradlew flywayClean flywayMigrate   # Gradle로 실행
 
