@@ -154,9 +154,112 @@ fun consumeStock(productId: Long, quantity: Int)
 | **4. Non-repeatable Read** | 동일 트랜잭션 내 같은 쿼리를 두 번 실행했는데 중간에 값이 바뀌어 다른 결과를 얻음. | Repeatable Read가 기본이지만, 명시적으로 `SELECT ... FOR UPDATE`를 사용하지 않는 조회(`ProductRepository.findById`)는 다른 트랜잭션의 커밋 후 값이 바뀔 수 있다. 주문 흐름에서는 write 전에 비관적 락을 사용하므로 문제없지만, 일반 조회 API는 "최신 값"을 반환해도 무방하다는 전제가 필요하다. | ⚠ 비critical, 필요 시 `@Lock`/`FOR UPDATE` 고려 |
 | **5. Phantom Read** | 동일 조건 조회가 두 번째에는 추가 로우를 반환. | MySQL Repeatable Read에서 phantom read는 gap lock으로 막히지만, InnoDB 옵션에 따라 insert gap lock 회피가 가능하다. 현재 코드는 phantom read를 적극적으로 제어하지 않는다. 예를 들어 `CouponService.getUserCoupons`는 호출 사이에 새로운 쿠폰이 생길 수 있다. 기능 요구사항상 허용 가능하지만, 통계/집계 쿼리라면 Snapshot isolation 또는 `SERIALIZABLE`이 필요하다. | ⚠ 요구사항별 확인 필요 |
 | **6. Write Skew** | 두 트랜잭션이 조건을 검사하고 모두 true라 판단, 동시에 write하여 제약을 깨뜨리는 경우. | 대표적으로 "동시에 주문 가능한 재고"를 count로 검사하는 로직이 없다. 재고는 `consumeStock`에서 직접 차감하므로 Write Skew는 발생하지 않는다. 다만, 다른 영역(예: on-call 담당자, 특정 리소스 예약)은 여전히 취약할 수 있으므로 동일 패턴을 적용해야 한다. | ✅ (재고)에 한함 |
-| **7. Deadlock** | 서로가 가진 락을 기다리다가 영원히 대기하는 상태. | 주문 흐름에서 `ProductLockManager`→`ProductRepository.consumeStock`→`OrderRepository.save` 순서로만 락을 획득하므로 데드락 가능성은 낮다. 하지만 `productLockManager`는 JVM 락이고 `consumeStock`은 DB 락을 획득하므로, 순서가 바뀌면 deadlock이 발생할 수 있다. 현재 코드는 MySQL deadlock 예외를 잡아 재시도하지 않으므로, 문제 발생 시 그대로 실패한다. Deadlock 감지 및 재시도 로직(backoff) 도입 권장. | ⚠ 재시도 로직 없음 |
+| 7. Deadlock | 서로가 가진 락을 기다리다가 영원히 대기하는 상태. | 주문 흐름에서 `ProductLockManager`→`ProductRepository.consumeStock`→`OrderRepository.save` 순서로만 락을 획득하므로 데드락 가능성은 낮다. 하지만 `productLockManager`는 JVM 락이고 `consumeStock`은 DB 락을 획득하므로, 순서가 바뀌면 deadlock이 발생할 수 있다. 현재 코드는 MySQL deadlock 예외를 잡아 재시도하지 않으므로, 문제 발생 시 그대로 실패한다. Deadlock 감지 및 재시도 로직(backoff) 도입 권장. | ⚠ 재시도 로직 없음 |
+
+## 실무 적용 가이드 (FAQ)
+
+### 1. 쿠폰 발급 시스템에서 DB 락 / 분산락을 반드시 사용해야 할까?
+
+**요약:**
+
+- *“쿠폰 발급 API마다 매번 `select for update` 같은 락을 거는 패턴”* 은 **잘 사용하지 않는 편**이며,
+- 대신 **원자적 연산(조건부 UPDATE)**, **DB 제약조건**, **캐시/Redis** 등으로 해결하는 경우가 더 많습니다.
+- **분산락(예: Redis lock)** 도 “정말 불가피한 경우”가 아니면 잘 사용하지 않으며, 사용하더라도 **짧은 시간/작은 범위**로만 사용합니다.
+
+#### 1-1. 쿠폰/재고 시스템에서 흔한 패턴들
+
+##### 1. 조건부 UPDATE로 처리 (DB가 알아서 row lock)
+
+```sql
+UPDATE coupon
+SET remain_count = remain_count - 1
+WHERE coupon_id = ? AND remain_count > 0;
+```
+
+- 영향을 받은 row 수가 1이면: **발급 성공**
+- 0이면: **이미 소진됨**
+- DB는 이 UPDATE 하는 순간 **해당 row에 대한 락을 획득하지만**, 개발자가 직접 `select ... for update` 등으로 미리 락을 잡지는 않습니다.
+- 이 방식이 **가장 흔한 패턴**입니다. (단순하며 트래픽 처리 효율이 좋음)
+
+##### 2. “유저당 1장만” 같은 조건 → 유니크 제약으로 처리
+
+```sql
+CREATE UNIQUE INDEX ux_user_coupon ON user_coupon (user_id, coupon_id);
+```
+
+- 동시 요청이 들어와도 DB가 알아서 하나는 성공, 나머지는 **unique violation** 발생 → 애플리케이션에서 잡아서 “이미 발급됨” 으로 처리합니다.
+- 별도의 락이나 분산락 없이, **DB의 제약조건을 동시성 제어 수단으로 사용하는 패턴**입니다.
+
+##### 3. Redis/캐시 선차감 패턴
+
+- 대량 트래픽 / 한정 쿠폰 같은 경우:
+  - Redis에서 `DECR` 로 먼저 차감 (원자 연산)
+  - 0 아래로 떨어지면 실패로 처리
+  - 실제 DB에는 비동기/배치로 적재하거나, 트랜잭션 안에서 한 번 더 검증
+- 이때도 보통 **개별 키에 대한 분산락을 따로 잡지 않고**, Redis의 `INCR/DECR/SETNX` 같은 원자 연산으로 해결하는 편입니다.
+
+#### 1-2. 그럼 **DB 락 / 분산락은 언제 사용하는가?**
+
+**DB 락(pessimistic lock, `select for update`)** 은 대체로:
+
+- **트래픽이 많지 않고**,
+- **비즈니스적으로 “꼭 순서 보장이 필요”** 하거나,
+- **동시성 충돌 시 롤백 비용이 너무 큰 경우**
+  에 사용하는 편이며, 정말 “핫한 쿠폰 발급 API” 같은 곳에는 잘 사용하지 않습니다. (성능 저하 우려)
+
+**분산락(Redis RedLock, Zookeeper 등)** 은:
+
+- *“정말로 전역에서 한 번에 딱 하나의 프로세스만 이 작업을 해야 한다”*
+- 예: 배치/스케줄러가 동일 시간에 여러 인스턴스에서 돌 수 있는데, **동시에 두 번 실행되면 문제가 되는 경우**
+
+같은 상황에서 주로 사용하며, “유저 쿠폰 1장씩 발급” 같이 **소규모, 고빈도** 작업에 분산락을 사용하는 것은 **보통 좋지 않은 선택**입니다.
+
+> **정리**: 쿠폰 발급은 “락”보다는 “원자적 조건부 연산 + 제약조건 + (필요시) 캐시/Redis 원자 연산”으로 해결하는 것이 일반적입니다.
+
+### 2. 낙관적 락은 사실상 DB 락이 아닌 것인가?
+
+개념을 분리해서 이해하는 것이 좋습니다.
+
+#### 2-1. 낙관적 락(Optimistic Lock)의 개념
+
+낙관적 락은 보통 다음과 같은 패턴으로 구현합니다:
+
+1. row를 읽을 때 `version` 컬럼도 같이 읽음
+2. 업데이트할 때:
+
+   ```sql
+   UPDATE coupon
+   SET remain_count = ?, version = version + 1
+   WHERE coupon_id = ? AND version = ?;
+   ```
+
+3. 영향을 받은 row 수가 1 → **성공**
+   0 → **누군가 먼저 수정하여 내가 읽을 때와 상태가 달라짐 → 충돌 → 재시도 or 실패 처리**
+
+**핵심 포인트:**
+
+- 낙관적 락은 **“선점해서 잡고 있는 락” 이 아니라 “나중에 충돌 났는지 검사하는 기법”**입니다.
+- 따라서 “락을 건다”기보다는 **“버전 기반 충돌 감지”**에 가깝습니다.
+
+#### 2-2. 그러면 이것이 DB 락인가, 아닌가?
+
+엄밀히 말하면:
+
+- **낙관적 락은 “전통적인 의미의 DB 락(뮤텍스처럼 오래 잡고 있는 락)”은 아닙니다.**
+  - 미리 `select ... for update` 를 해서 행을 홀딩하지도 않고,
+  - 애플리케이션 레벨에서 “동시 수정 여부를 검사”하는 로직에 가깝습니다.
+- 하지만 **UPDATE 자체는 결국 DB 내부에서 row-level 락을 아주 짧은 시간 동안 잡습니다.**
+  - 모든 UPDATE/INSERT/DELETE는 DB가 내부적으로 row/page 락을 잠깐 잡았다가 커밋하면서 해제합니다.
+  - 이건 “낙관적 락이라서 특별히 락이 없다”가 아니라, 모든 쓰기 연산에 공통적인 동작입니다.
+
+**정리하자면:**
+
+- 우리가 흔히 말하는 “DB 락을 사용한다 / 안 한다”에서의 **락**은 → **pessimistic locking (`select ... for update` 로 미리 잡아두는 것)** 을 가리키는 경우가 많습니다.
+- **낙관적 락은 그런 의미의 락은 아니며, 충돌 감지 전략**입니다.
+- 그럼에도 불구하고, DB 내부적으로는 UPDATE 시 짧게 row lock을 거는 것은 맞습니다. (이는 낙관적/비관적과 무관하게 항상 필요한 최소한의 락입니다.)
 
 ## 결론 및 권장 개선 사항
+
 1. **분산 락 도입**: JVM 내부 락 대신 Redis/ZooKeeper/DB 락을 사용하거나, 완전히 DB 내 원자 연산만으로 동시성을 제어하도록 개선합니다.
 2. **락/트랜잭션 실패 로그**: `consumeStock`, `incrementIssuedQuantity` 등에서 실패 시 경고와 컨텍스트를 남겨 문제 분석을 돕고, 필요 시 재시도 전략(예: 지수 백오프)을 적용합니다.
 3. **테스트 강화**: 현재 통합 테스트는 단일 프로세스에서만 검증하므로, 분산 환경을 가정한 시나리오(멀티 JVM 시뮬레이션 또는 Chaos 테스트)를 고려합니다.

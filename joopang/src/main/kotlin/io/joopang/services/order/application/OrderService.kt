@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
@@ -147,7 +149,7 @@ class OrderService(
 
         order.discounts.forEach { discount ->
             discount.couponId?.let { couponId ->
-                val coupon = couponRepository.findByIdOrNull(couponId)
+                val coupon = couponRepository.findByIdForUpdate(couponId)
                     ?: throw CouponNotFoundException(couponId.toString())
                 if (coupon.userId != order.userId) {
                     throw InvalidCouponException("Coupon $couponId does not belong to user ${order.userId}")
@@ -185,11 +187,18 @@ class OrderService(
             paidAt = order.paidAt,
         )
 
-        try {
-            dataTransmissionService.send(payload)
-        } catch (ex: Exception) {
-            dataTransmissionService.addToRetryQueue(payload)
-        }
+        TransactionSynchronizationManager.registerSynchronization(
+            object : TransactionSynchronization {
+                override fun afterCommit() {
+                    try {
+                        dataTransmissionService.send(payload)
+                    } catch (ex: Exception) {
+                        logger.error("Failed to send order data. Adding to retry queue.", ex)
+                        dataTransmissionService.addToRetryQueue(payload)
+                    }
+                }
+            },
+        )
 
         return PaymentOutput(
             orderId = orderId,

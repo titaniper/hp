@@ -500,5 +500,62 @@ Spring은 “DataSource 빈이 두 개네?”
 
 원하면
 **1) Spring 내부 동작 흐름 (Bean resolution 과정)**
-**2) Lazy 프록시 내부 구조 (TransactionAwareConnectionProxy vs LazyConnectionProxy 차이)**
+**2) ---
+
+## 8. 심화: Lazy 프록시 내부 구조와 동작 원리
+
+`LazyConnectionDataSourceProxy`가 어떻게 커넥션을 "게으르게" 가져오는지, 그리고 비슷한 역할을 하는 `TransactionAwareDataSourceProxy`와는 무엇이 다른지 내부 구조를 뜯어보겠습니다.
+
+### 8-1. 어떻게 Lazy하게 가져오는가? (구현 원리)
+
+핵심은 **"가짜 커넥션(Proxy Connection)"**에 있습니다.
+
+1. **`getConnection()` 호출 시점**:
+   * `LazyConnectionDataSourceProxy`는 실제 DB 커넥션을 맺지 않습니다.
+   * 대신, 자바의 `java.lang.reflect.Proxy`를 이용해 만든 **가짜 커넥션 객체**를 즉시 리턴합니다.
+   * 이 가짜 객체는 아직 물리적인 DB 연결이 없는 상태입니다.
+
+2. **메서드 호출 가로채기 (InvocationHandler)**:
+   * 사용자(트랜잭션 매니저 등)가 이 가짜 커넥션의 메서드를 호출할 때마다, 프록시 내부의 `InvocationHandler`가 이를 가로챕니다.
+
+3. **설정 메서드 캐싱**:
+   * `setAutoCommit(false)`, `setTransactionIsolation(...)`, `setReadOnly(true)` 같은 설정 메서드가 호출되면?
+   * **DB에 연결하지 않고**, 그냥 메모리에 "이 설정 해야 함"이라고 **기록(Flagging)**만 해둡니다.
+   * 아직도 물리 커넥션은 없습니다.
+
+4. **실제 쿼리 실행 시점 (Statement 생성)**:
+   * `prepareStatement()`, `createStatement()` 같이 **진짜 DB와 통신해야 하는 메서드**가 호출되면?
+   * **그제서야** 원본 `DataSource`(`HikariDataSource`)에서 `getConnection()`을 호출해 물리 커넥션을 가져옵니다.
+   * 그리고 아까 메모리에 기록해둔 설정(`autoCommit`, `readOnly` 등)을 물리 커넥션에 적용한 뒤, 쿼리를 수행합니다.
+
+> **요약**: "설정은 메모리에 적어두고, 진짜 쿼리 날릴 때 커넥션 빌려서 한꺼번에 적용한다."
+
+### 8-2. `TransactionAwareDataSourceProxy` vs `LazyConnectionDataSourceProxy`
+
+스프링에는 비슷한 이름의 프록시가 하나 더 있습니다. 바로 `TransactionAwareDataSourceProxy`입니다. 둘은 비슷해 보이지만 목적이 다릅니다.
+
+| 특징 | TransactionAwareDataSourceProxy | LazyConnectionDataSourceProxy |
+| :--- | :--- | :--- |
+| **주 목적** | **트랜잭션 동기화** | **커넥션 획득 지연** |
+| **커넥션 획득 시점** | `getConnection()` 호출 **즉시** | 실제 쿼리 실행 시점 (**지연**) |
+| **사용 시나리오** | JPA 없이 MyBatis/JdbcTemplate 등을 혼용할 때 트랜잭션 유지용 | 불필요한 커넥션 점유 시간을 줄이기 위한 성능 최적화용 |
+| **기능 포함 여부** | Lazy 기능 없음 | **TransactionAware 기능 포함** |
+
+* **`TransactionAwareDataSourceProxy`**:
+  * 스프링 트랜잭션 매니저가 관리하는 커넥션을, 트랜잭션 밖에서 `DataSource.getConnection()`을 직접 호출하더라도 **똑같은 커넥션을 리턴**해주기 위해 존재합니다.
+  * 즉, "이미 트랜잭션 중이면 그 커넥션 재사용해라"라는 기능입니다.
+  * 하지만 **Lazy 로딩은 안 합니다.** 부르자마자 바로 가져옵니다.
+
+* **`LazyConnectionDataSourceProxy`**:
+  * `TransactionAwareDataSourceProxy`의 기능을 **기본적으로 포함**하고 있습니다.
+  * 거기에 더해 **"커넥션 획득을 최대한 미루는 기능"**이 추가된 상위 호환 버전이라고 볼 수 있습니다.
+
+### 8-3. 결론
+
+우리가 사용하는 `LazyConnectionDataSourceProxy`는:
+
+1. **트랜잭션 동기화**도 알아서 해주고 (Transaction Aware)
+2. **커넥션도 최대한 늦게** 빌려줍니다 (Lazy Loading)
+
+따라서 성능 최적화와 트랜잭션 안전성을 모두 챙길 수 있는 아주 강력한 도구입니다.
 도 설명해줄 수 있음.
