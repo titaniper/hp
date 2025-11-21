@@ -79,7 +79,7 @@ class Order(
         cascade = [CascadeType.ALL],
         orphanRemoval = true,
     )
-    val discounts: MutableList<OrderDiscount> = mutableListOf()
+    val discounts: MutableSet<OrderDiscount> = mutableSetOf()
 
     init {
         if (id != null || recipientName.isNotBlank()) {

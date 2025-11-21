@@ -27,6 +27,7 @@ abstract class IntegrationTestSupport {
             withDatabaseName("joopang")
             withUsername("joopang")
             withPassword("joopang")
+            withTmpFs(mapOf("/var/lib/mysql" to "rw,size=256m"))
         }
     }
 }

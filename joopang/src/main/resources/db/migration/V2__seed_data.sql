@@ -1,3 +1,18 @@
+DELETE FROM payments;
+DELETE FROM deliveries;
+DELETE FROM order_discounts;
+DELETE FROM order_items;
+DELETE FROM orders;
+DELETE FROM coupons;
+DELETE FROM coupon_templates;
+DELETE FROM cart_items;
+DELETE FROM product_daily_sales;
+DELETE FROM product_items;
+DELETE FROM products;
+DELETE FROM categories;
+DELETE FROM sellers;
+DELETE FROM users;
+
 INSERT INTO sellers (id, name, type, owner_id) VALUES
     (200, 'Joopang Originals', 'BRAND', 100),
     (201, 'Handcrafted Goods', 'PERSON', 101);
