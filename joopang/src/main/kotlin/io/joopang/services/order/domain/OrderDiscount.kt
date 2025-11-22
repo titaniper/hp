@@ -1,14 +1,17 @@
 package io.joopang.services.order.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import jakarta.persistence.Column
+import jakarta.persistence.ConstraintMode
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.FetchType
+import jakarta.persistence.ForeignKey
 import jakarta.persistence.Index
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 
 @Entity
@@ -22,14 +25,7 @@ import jakarta.persistence.Table
     ],
 )
 class OrderDiscount(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
-    @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
-    var orderId: Long? = null,
-
+    id: Long? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     var type: OrderDiscountType = OrderDiscountType.POINT,
@@ -42,7 +38,15 @@ class OrderDiscount(
 
     @Column(name = "coupon_id", columnDefinition = "BIGINT")
     var couponId: Long? = null,
-) {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+        name = "order_id",
+        nullable = false,
+        foreignKey = ForeignKey(ConstraintMode.NO_CONSTRAINT),
+    )
+    var order: Order? = null,
+) : BaseEntity(id) {
 
     init {
         require(price >= Money.ZERO) { "Discount price cannot be negative" }
@@ -50,11 +54,11 @@ class OrderDiscount(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
-        orderId = null,
+        id = null,
         type = OrderDiscountType.POINT,
         referenceId = null,
         price = Money.ZERO,
         couponId = null,
+        order = null,
     )
 }

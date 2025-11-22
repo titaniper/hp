@@ -8,6 +8,7 @@ import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.infrastructure.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -47,7 +48,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
             startAt = Instant.now().minusSeconds(60),
             endAt = Instant.now().plusSeconds(300),
         )
-        templateId = inTransaction { couponTemplateRepository.save(template).id }
+        templateId = inTransaction { couponTemplateRepository.save(template).id!! }
     }
 
     @Test
@@ -66,7 +67,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
                     val baseUser = userRepository.findAll().first()
                     userRepository.save(
                         baseUser.copy(
-                            id = 0,
+                            id = null,
                             email = Email("coupon-${System.nanoTime()}@joopang.com"),
                         ),
                     )
@@ -76,7 +77,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
                     val result = couponService.issueCoupon(
                         CouponService.IssueCouponCommand(
                             couponTemplateId = templateId,
-                            userId = user.id,
+                            userId = user.id!!,
                         ),
                     )
                     successes += result.coupon.id
@@ -92,10 +93,10 @@ class CouponServiceIntegrationTest @Autowired constructor(
         doneLatch.await(5, TimeUnit.SECONDS)
         executor.shutdownNow()
 
-        val template = couponTemplateRepository.findById(templateId)!!
+        val template = couponTemplateRepository.findByIdOrNull(templateId)!!
         assertThat(successes).hasSize(5)
         successes.forEach { couponId ->
-            assertThat(couponRepository.findById(couponId)).isNotNull
+            assertThat(couponRepository.findByIdOrNull(couponId)).isNotNull
         }
         assertThat(template.issuedQuantity).isEqualTo(5)
         assertThat(failures).isNotEmpty()

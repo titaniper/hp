@@ -1,14 +1,12 @@
 package io.joopang.services.product.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 
 @Entity
@@ -22,11 +20,7 @@ import jakarta.persistence.Table
     ],
 )
 class ProductItem(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "product_id", columnDefinition = "BIGINT", nullable = false)
     var productId: Long? = null,
 
@@ -48,10 +42,10 @@ class ProductItem(
 
     @Column(nullable = false, unique = true, length = 191)
     var code: ProductItemCode = ProductItemCode("DEFAULT_ITEM"),
-) {
+) : BaseEntity(id) {
 
     init {
-        if (id != 0L || name.isNotBlank()) {
+        if (id != null || name.isNotBlank()) {
             require(name.isNotBlank()) { "Product item name must not be blank" }
         }
     }
@@ -60,7 +54,7 @@ class ProductItem(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         productId = null,
         name = "",
         unitPrice = Money.ZERO,
@@ -71,7 +65,7 @@ class ProductItem(
     )
 
     fun copy(
-        id: Long = this.id,
+        id: Long? = this.id,
         productId: Long? = this.productId,
         name: String = this.name,
         unitPrice: Money = this.unitPrice,

@@ -106,11 +106,11 @@ class OrderServiceTest @Autowired constructor(
         return inTransaction {
             val baseUser = userRepository.findAll().first()
             val uniqueUser = baseUser.copy(
-                id = 0,
+                id = null,
                 email = Email("order-${System.nanoTime()}@joopang.com"),
                 balance = Money.of(1_000_000L),
             )
-            userRepository.save(uniqueUser).id
+            userRepository.save(uniqueUser).id!!
         }
     }
 
@@ -132,7 +132,7 @@ class OrderServiceTest @Autowired constructor(
                 ),
             )
         }
-        val templateId = template.id
+        val templateId = template.id!!
         val output = couponService.issueCoupon(
             CouponService.IssueCouponCommand(
                 couponTemplateId = templateId,

@@ -28,15 +28,17 @@ class ProductRepository(
             return emptyList()
         }
 
-        val itemsByProductId = findItemsByProductIds(products.map { it.id })
+        val itemsByProductId = findItemsByProductIds(products.mapNotNull { it.id })
         return products.map { product ->
-            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+            val productId = product.id ?: throw IllegalStateException("Product id is null")
+            ProductWithItems(product, itemsByProductId[productId].orEmpty())
         }
     }
 
     fun findById(productId: Long): ProductWithItems? {
         val product = entityManager.find(Product::class.java, productId) ?: return null
-        return ProductWithItems(product, findItems(product.id))
+        val id = product.id ?: productId
+        return ProductWithItems(product, findItems(id))
     }
 
     fun consumeStock(productItemId: Long, quantity: Long): Boolean =
@@ -78,9 +80,10 @@ class ProductRepository(
             return emptyList()
         }
 
-        val itemsByProductId = findItemsByProductIds(products.map { it.id })
+        val itemsByProductId = findItemsByProductIds(products.mapNotNull { it.id })
         return products.map { product ->
-            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+            val pId = product.id ?: throw IllegalStateException("Product id is null")
+            ProductWithItems(product, itemsByProductId[pId].orEmpty())
         }
     }
 
@@ -98,7 +101,8 @@ class ProductRepository(
 
         val itemsByProductId = findItemsByProductIds(productIds)
         return products.map { product ->
-            ProductWithItems(product, itemsByProductId[product.id].orEmpty())
+            val pId = product.id ?: throw IllegalStateException("Product id is null")
+            ProductWithItems(product, itemsByProductId[pId].orEmpty())
         }
     }
 
@@ -152,10 +156,10 @@ class ProductRepository(
         entityManager.persist(product)
         entityManager.flush()
 
-        val productId = product.id.takeIf { it != 0L }
+        val productId = product.id
             ?: throw IllegalStateException("Failed to generate product id")
         aggregate.items.forEach { item ->
-            item.id = 0
+            item.id = null
             item.productId = productId
             entityManager.persist(item)
         }
@@ -163,15 +167,13 @@ class ProductRepository(
     }
 
     fun update(aggregate: ProductWithItems): ProductWithItems {
-        val productId = aggregate.product.id.takeIf { it != 0L }
+        val productId = aggregate.product.id
             ?: throw IllegalArgumentException("Product id must be provided for update")
         val existing = entityManager.find(Product::class.java, productId)
             ?: throw IllegalArgumentException("Product with id $productId not found")
 
         overwriteProduct(existing, aggregate.product)
-        val idsToKeep = aggregate.items.mapNotNull { item ->
-            item.id.takeIf { it != 0L }
-        }
+        val idsToKeep = aggregate.items.mapNotNull { it.id }
         if (idsToKeep.isEmpty()) {
             deleteItemsByProductId(productId)
         } else {
@@ -179,7 +181,7 @@ class ProductRepository(
         }
         aggregate.items.forEach { item ->
             item.productId = productId
-            if (item.id == 0L) {
+            if (item.id == null) {
                 entityManager.persist(item)
             } else {
                 entityManager.merge(item)

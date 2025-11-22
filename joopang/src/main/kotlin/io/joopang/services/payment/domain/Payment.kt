@@ -1,14 +1,12 @@
 package io.joopang.services.payment.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
 
@@ -23,11 +21,7 @@ import java.time.Instant
     ],
 )
 class Payment(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
     var orderId: Long = 0,
 
@@ -62,10 +56,10 @@ class Payment(
 
     @Column(name = "cancelled_at")
     var cancelledAt: Instant? = null,
-) {
+) : BaseEntity(id) {
 
     init {
-        if (id != 0L || orderId != 0L) {
+        if (id != null || orderId != 0L) {
             require(paymentGateway.isNotBlank()) { "Payment gateway must not be blank" }
             require(paymentAmount >= Money.ZERO) { "Payment amount cannot be negative" }
             require(remainingBalance >= Money.ZERO) { "Remaining balance cannot be negative" }
@@ -78,7 +72,7 @@ class Payment(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         orderId = 0,
         paymentGateway = "",
         paymentMethod = PaymentMethod.CREDIT_CARD,

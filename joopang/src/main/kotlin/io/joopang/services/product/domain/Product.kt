@@ -1,25 +1,19 @@
 package io.joopang.services.product.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Percentage
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDate
 
 @Entity
 @Table(name = "products")
 class Product(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(nullable = false)
     var name: String = "",
 
@@ -59,10 +53,10 @@ class Product(
 
     @Column(name = "created_at", nullable = false)
     var createdAt: LocalDate = LocalDate.now(),
-) {
+) : BaseEntity(id) {
 
     init {
-        if (id != 0L || name.isNotBlank()) {
+        if (id != null || name.isNotBlank()) {
             require(name.isNotBlank()) { "Product name must not be blank" }
             require(version >= 0) { "Product version must be non-negative" }
             require(viewCount >= 0) { "View count must be non-negative" }
@@ -81,7 +75,7 @@ class Product(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         name = "",
         code = ProductCode("DEFAULT"),
         description = null,
@@ -98,7 +92,7 @@ class Product(
     )
 
     fun copy(
-        id: Long = this.id,
+        id: Long? = this.id,
         name: String = this.name,
         code: ProductCode = this.code,
         description: String? = this.description,

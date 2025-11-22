@@ -8,6 +8,7 @@ import io.joopang.services.cart.domain.CartTotals
 import io.joopang.services.cart.infrastructure.CartItemRepository
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Quantity
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.product.domain.InsufficientStockException
 import io.joopang.services.product.domain.ProductItem
 import io.joopang.services.product.domain.ProductItemNotFoundException
@@ -16,6 +17,7 @@ import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -27,7 +29,7 @@ class CartService(
 ) {
 
     fun getCart(userId: Long): Output {
-        val items = cartItemRepository.findByUserId(userId)
+        val items = cartItemRepository.findAllByUserId(userId)
         return buildView(userId, items)
     }
 
@@ -68,7 +70,7 @@ class CartService(
     @Transactional
     fun updateItemQuantity(command: UpdateCartItemQuantityCommand): Output {
         val newQuantity = Quantity(command.quantity)
-        val existingItem = cartItemRepository.findById(command.cartItemId)
+        val existingItem = cartItemRepository.findByIdOrNull(command.cartItemId)
             ?: throw CartItemNotFoundException(command.cartItemId)
 
         if (existingItem.userId != command.userId) {
@@ -89,7 +91,7 @@ class CartService(
             val updatedItem = existingItem.copy(quantity = newQuantity)
             cartItemRepository.save(updatedItem)
         } else {
-            cartItemRepository.delete(existingItem.id)
+            cartItemRepository.deleteById(existingItem.requireId())
         }
 
         return getCart(command.userId)
@@ -97,14 +99,14 @@ class CartService(
 
     @Transactional
     fun removeItem(command: RemoveCartItemCommand): Output {
-        val existingItem = cartItemRepository.findById(command.cartItemId)
+        val existingItem = cartItemRepository.findByIdOrNull(command.cartItemId)
             ?: throw CartItemNotFoundException(command.cartItemId)
 
         if (existingItem.userId != command.userId) {
             throw IllegalStateException("Cart item ${command.cartItemId} does not belong to user ${command.userId}")
         }
 
-        cartItemRepository.delete(existingItem.id)
+        cartItemRepository.deleteById(existingItem.requireId())
 
         return getCart(command.userId)
     }
@@ -115,12 +117,12 @@ class CartService(
             return getCart(command.targetUserId)
         }
 
-        val sourceItems = cartItemRepository.findByUserId(command.sourceUserId)
+        val sourceItems = cartItemRepository.findAllByUserId(command.sourceUserId)
         if (sourceItems.isEmpty()) {
             return getCart(command.targetUserId)
         }
 
-        val targetItems = cartItemRepository.findByUserId(command.targetUserId)
+        val targetItems = cartItemRepository.findAllByUserId(command.targetUserId)
         val targetByProductItem = targetItems.associateBy { it.productItemId }.toMutableMap()
 
         sourceItems.forEach { item ->
@@ -216,7 +218,7 @@ class CartService(
         } else {
             productRepository
                 .findProductsByIds(items.map { it.productId }.distinct())
-                .associateBy { it.product.id }
+                .associateBy { it.product.requireId() }
         }
 
         val pricingLines = mutableListOf<CartPricingLine>()
@@ -224,7 +226,7 @@ class CartService(
             val aggregate = aggregates[item.productId]
             if (aggregate == null) {
                 ItemOutput(
-                    cartItemId = item.id,
+                    cartItemId = item.requireId(),
                     productId = item.productId,
                     productItemId = item.productItemId,
                     productName = null,
@@ -238,7 +240,7 @@ class CartService(
                 val productItem = aggregate.items.firstOrNull { it.id == item.productItemId }
                 if (productItem == null) {
                     ItemOutput(
-                        cartItemId = item.id,
+                        cartItemId = item.requireId(),
                         productId = item.productId,
                         productItemId = item.productItemId,
                         productName = aggregate.product.name,
@@ -265,7 +267,7 @@ class CartService(
                     }
 
                     ItemOutput(
-                        cartItemId = item.id,
+                        cartItemId = item.requireId(),
                         productId = item.productId,
                         productItemId = item.productItemId,
                         productName = aggregate.product.name,

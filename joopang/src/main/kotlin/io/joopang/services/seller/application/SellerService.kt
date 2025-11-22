@@ -1,9 +1,11 @@
 package io.joopang.services.seller.application
 
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.seller.domain.Seller
 import io.joopang.services.seller.domain.SellerNotFoundException
 import io.joopang.services.seller.domain.SellerType
 import io.joopang.services.seller.infrastructure.SellerRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,14 +20,14 @@ class SellerService(
             .map { it.toOutput() }
 
     fun getSeller(id: Long): Output =
-        sellerRepository.findById(id)
+        sellerRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw SellerNotFoundException(id.toString())
 
     @Transactional
     fun registerSeller(command: RegisterSellerCommand): Output {
         val seller = Seller(
-            id = command.id ?: 0,
+            id = command.id,
             name = command.name,
             type = command.type,
             ownerId = command.ownerId,
@@ -35,7 +37,7 @@ class SellerService(
 
     private fun Seller.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             name = name,
             type = type,
             ownerId = ownerId,

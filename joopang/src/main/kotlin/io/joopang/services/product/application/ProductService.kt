@@ -3,6 +3,7 @@ package io.joopang.services.product.application
 import io.joopang.services.common.application.CacheService
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Percentage
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.common.monitoring.TrackPerformance
 import io.joopang.services.product.domain.Product
 import io.joopang.services.product.domain.ProductCode
@@ -110,7 +111,7 @@ class ProductService(
 
         val updatedItems = command.items.map { itemCommand ->
             ProductItem(
-                id = itemCommand.id ?: 0,
+                id = itemCommand.id,
                 productId = productId,
                 name = itemCommand.name,
                 unitPrice = Money.of(itemCommand.unitPrice),
@@ -193,10 +194,11 @@ class ProductService(
     private fun productComparator(sort: ProductSort): Comparator<ProductWithItems> =
         when (sort) {
             ProductSort.NEWEST -> compareByDescending { aggregate ->
-                productRepository.findProductCreatedAt(aggregate.product.id) ?: LocalDate.MIN
+                val productId = aggregate.product.requireId()
+                productRepository.findProductCreatedAt(productId) ?: LocalDate.MIN
             }
             ProductSort.SALES -> compareByDescending { aggregate ->
-                totalSalesSince(aggregate.product.id, LocalDate.MIN)
+                totalSalesSince(aggregate.product.requireId(), LocalDate.MIN)
             }
             ProductSort.PRICE_ASC -> compareBy { aggregate -> aggregate.product.price.toBigDecimal() }
             ProductSort.PRICE_DESC -> compareByDescending { aggregate -> aggregate.product.price.toBigDecimal() }
@@ -210,7 +212,7 @@ class ProductService(
 
     private fun ProductWithItems.toOutput(): Output =
         Output(
-            id = product.id,
+            id = product.requireId(),
             name = product.name,
             code = product.code.value,
             description = product.description,
@@ -228,7 +230,7 @@ class ProductService(
 
     private fun ProductItem.toOutput(): Output.Item =
         Output.Item(
-            id = id,
+            id = requireId(),
             name = name,
             unitPrice = unitPrice,
             description = description,

@@ -4,6 +4,8 @@ import io.joopang.services.category.domain.Category
 import io.joopang.services.category.domain.CategoryNotFoundException
 import io.joopang.services.category.domain.CategoryStatus
 import io.joopang.services.category.infrastructure.CategoryRepository
+import io.joopang.services.common.domain.requireId
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -15,25 +17,25 @@ class CategoryService(
 
     fun listCategories(parentId: Long?): List<Output> =
         if (parentId == null) {
-            categoryRepository.findAll()
+            categoryRepository.findAllByParentIdIsNull()
         } else {
-            categoryRepository.findByParentId(parentId)
+            categoryRepository.findAllByParentId(parentId)
         }.map { it.toOutput() }
 
     fun getCategory(id: Long): Output =
-        categoryRepository.findById(id)
+        categoryRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw CategoryNotFoundException(id.toString())
 
     @Transactional
     fun createCategory(command: CreateCategoryCommand): Output {
         val parent = command.parentId?.let { parentId ->
-            categoryRepository.findById(parentId)
+            categoryRepository.findByIdOrNull(parentId)
                 ?: throw CategoryNotFoundException(parentId.toString())
         }
 
         val category = Category(
-            id = command.id ?: 0,
+            id = command.id,
             level = parent?.let { it.level + 1 } ?: 0,
             name = command.name,
             status = CategoryStatus(command.status),
@@ -45,7 +47,7 @@ class CategoryService(
 
     private fun Category.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             level = level,
             name = name,
             status = status,

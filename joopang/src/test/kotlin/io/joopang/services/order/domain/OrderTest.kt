@@ -32,10 +32,10 @@ class OrderTest {
     fun `mark paid updates status`() {
         val order = order()
 
-        val paid = order.markPaid(Instant.now())
+        order.markPaid(Instant.now())
 
-        assertThat(paid.status).isEqualTo(OrderStatus.PAID)
-        assertThat(paid.paidAt).isNotNull()
+        assertThat(order.status).isEqualTo(OrderStatus.PAID)
+        assertThat(order.paidAt).isNotNull()
     }
 
     @Test

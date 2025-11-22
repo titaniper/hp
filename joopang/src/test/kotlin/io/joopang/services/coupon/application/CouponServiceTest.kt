@@ -12,6 +12,7 @@ import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.coupon.infrastructure.CouponTemplateRepository
 import io.joopang.services.user.domain.User
 import io.joopang.services.user.infrastructure.UserRepository
+import org.springframework.data.repository.findByIdOrNull
 import io.joopang.support.IntegrationTestSupport
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -51,7 +52,7 @@ class CouponServiceTest @Autowired constructor(
         )
 
         assertThat(result.coupon.id).isNotNull()
-        assertThat(couponRepository.findById(result.coupon.id)).isNotNull
+        assertThat(couponRepository.findByIdOrNull(result.coupon.id)).isNotNull
     }
 
     @Test
@@ -61,7 +62,7 @@ class CouponServiceTest @Autowired constructor(
                 Coupon(
                     userId = userId,
                     couponTemplateId = templateId,
-                    type = couponTemplateRepository.findById(templateId)!!.type,
+                    type = couponTemplateRepository.findByIdOrNull(templateId)!!.type,
                     value = BigDecimal("0.10"),
                     status = CouponStatus.AVAILABLE,
                     issuedAt = Instant.now().minus(10, ChronoUnit.DAYS),
@@ -73,7 +74,7 @@ class CouponServiceTest @Autowired constructor(
 
         val results = couponService.getUserCoupons(userId)
 
-        val updated = couponRepository.findById(expiredCouponId)!!
+        val updated = couponRepository.findByIdOrNull(expiredCouponId)!!
         assertThat(updated.status).isEqualTo(CouponStatus.EXPIRED)
         assertThat(results.first { it.id == expiredCouponId }.status)
             .isEqualTo(CouponStatus.EXPIRED)
@@ -93,18 +94,18 @@ class CouponServiceTest @Autowired constructor(
             startAt = Instant.now().minusSeconds(60),
             endAt = Instant.now().plusSeconds(3600),
         )
-        return inTransaction { couponTemplateRepository.save(template).id }
+        return inTransaction { couponTemplateRepository.save(template).id!! }
     }
 
     private fun createUser(): Long {
         val user = User(
-            id = 0,
+            id = null,
             email = Email("tester-${System.nanoTime()}@joopang.com"),
             password = PasswordHash("hash-${System.nanoTime()}"),
             firstName = "Tester",
             lastName = "User",
             balance = Money.of(100_000L),
         )
-        return inTransaction { userRepository.save(user).id }
+        return inTransaction { userRepository.save(user).id!! }
     }
 }

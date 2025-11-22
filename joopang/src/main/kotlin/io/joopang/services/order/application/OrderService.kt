@@ -3,6 +3,7 @@ package io.joopang.services.order.application
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.domain.Quantity
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponNotFoundException
 import io.joopang.services.coupon.domain.CouponStatus
@@ -10,7 +11,6 @@ import io.joopang.services.coupon.domain.CouponType
 import io.joopang.services.coupon.domain.InvalidCouponException
 import io.joopang.services.coupon.infrastructure.CouponRepository
 import io.joopang.services.order.domain.Order
-import io.joopang.services.order.domain.OrderAggregate
 import io.joopang.services.order.domain.OrderDiscount
 import io.joopang.services.order.domain.OrderDiscountType
 import io.joopang.services.order.domain.OrderItem
@@ -29,8 +29,11 @@ import io.joopang.services.product.infrastructure.ProductRepository
 import io.joopang.services.user.domain.UserNotFoundException
 import io.joopang.services.user.infrastructure.UserRepository
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.RoundingMode
 import java.time.Instant
 import java.time.ZoneId
@@ -50,9 +53,9 @@ class OrderService(
 
     @Transactional
     fun createOrder(command: CreateOrderCommand): Output {
-        val user = userRepository.findById(command.userId)
+        val user = userRepository.findByIdOrNull(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
-        val userId = user.id
+        val userId = user.requireId()
         val now = Instant.now()
         val orderMonth = toOrderMonth(now, command.zoneId)
 
@@ -63,7 +66,7 @@ class OrderService(
         val subtotal = reservation.subtotal
 
         val couponResult = command.couponId?.let { couponId ->
-            val coupon = couponRepository.findUserCoupon(userId, couponId)
+            val coupon = couponRepository.findByIdAndUserId(couponId, userId)
                 ?: throw CouponNotFoundException(couponId.toString())
             validateCoupon(coupon)
             val discountAmount = calculateDiscount(subtotal, coupon)
@@ -78,7 +81,7 @@ class OrderService(
                         type = OrderDiscountType.COUPON,
                         referenceId = result.coupon.couponTemplateId,
                         price = result.discountAmount,
-                        couponId = result.coupon.id,
+                        couponId = result.coupon.requireId(),
                     ),
                 )
             } ?: emptyList()
@@ -106,53 +109,50 @@ class OrderService(
             )
         }
 
-        val aggregate = OrderAggregate(
-            order = order,
-            items = items,
-            discounts = orderDiscounts,
-        )
+        items.forEach(order::addItem)
+        orderDiscounts.forEach(order::addDiscount)
 
-        return orderRepository.save(aggregate).toOutput()
+        return orderRepository.save(order).toOutput()
     }
 
     fun getOrder(orderId: Long): Output =
-        orderRepository.findById(orderId)
+        orderRepository.findWithDetailsById(orderId)
             ?.toOutput()
             ?: throw OrderNotFoundException(orderId.toString())
 
     fun listOrders(): List<Output> =
-        orderRepository.findAll()
+        orderRepository.findAllWithDetails()
             .map { it.toOutput() }
 
     @Transactional
     fun processPayment(command: ProcessPaymentCommand): PaymentOutput {
-        val aggregate = orderRepository.findByIdForUpdate(command.orderId)
+        val order = orderRepository.findWithDetailsByIdForUpdate(command.orderId)
             ?: throw OrderNotFoundException(command.orderId.toString())
 
-        if (aggregate.order.userId != command.userId) {
+        if (order.userId != command.userId) {
             throw OrderOwnershipException(command.orderId.toString(), command.userId.toString())
         }
-        if (!aggregate.order.canPay()) {
+        if (!order.canPay()) {
             throw OrderPaymentNotAllowedException(
-                aggregate.order.id.toString(),
-                aggregate.order.status,
+                (order.id ?: command.orderId).toString(),
+                order.status,
             )
         }
-        val orderId = aggregate.order.id
+        val orderId = order.id ?: command.orderId
 
         val user = userRepository.findByIdForUpdate(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
 
-        val payableAmount = aggregate.order.payableAmount()
+        val payableAmount = order.payableAmount()
         val updatedUser = user.deduct(payableAmount)
         userRepository.save(updatedUser)
 
-        aggregate.discounts.forEach { discount ->
+        order.discounts.forEach { discount ->
             discount.couponId?.let { couponId ->
-                val coupon = couponRepository.findById(couponId)
+                val coupon = couponRepository.findByIdForUpdate(couponId)
                     ?: throw CouponNotFoundException(couponId.toString())
-                if (coupon.userId != aggregate.order.userId) {
-                    throw InvalidCouponException("Coupon $couponId does not belong to user ${aggregate.order.userId}")
+                if (coupon.userId != order.userId) {
+                    throw InvalidCouponException("Coupon $couponId does not belong to user ${order.userId}")
                 }
                 if (coupon.status != CouponStatus.AVAILABLE) {
                     throw InvalidCouponException("Coupon $couponId is not available")
@@ -167,13 +167,13 @@ class OrderService(
         }
 
         val paidAt = Instant.now()
-        val updatedAggregate = aggregate.copy(order = aggregate.order.markPaid(paidAt))
-        orderRepository.update(updatedAggregate)
+        order.markPaid(paidAt)
+        orderRepository.save(order)
 
         val payload = OrderDataPayload(
             orderId = orderId,
-            userId = updatedAggregate.order.userId,
-            items = updatedAggregate.items.map { item ->
+            userId = order.userId,
+            items = order.items.map { item ->
                 OrderDataLineItem(
                     productId = item.productId,
                     productItemId = item.productItemId,
@@ -182,20 +182,27 @@ class OrderService(
                     subtotal = item.subtotal,
                 )
             },
-            totalAmount = updatedAggregate.order.totalAmount,
-            discountAmount = updatedAggregate.order.discountAmount,
-            paidAt = updatedAggregate.order.paidAt,
+            totalAmount = order.totalAmount,
+            discountAmount = order.discountAmount,
+            paidAt = order.paidAt,
         )
 
-        try {
-            dataTransmissionService.send(payload)
-        } catch (ex: Exception) {
-            dataTransmissionService.addToRetryQueue(payload)
-        }
+        TransactionSynchronizationManager.registerSynchronization(
+            object : TransactionSynchronization {
+                override fun afterCommit() {
+                    try {
+                        dataTransmissionService.send(payload)
+                    } catch (ex: Exception) {
+                        logger.error("Failed to send order data. Adding to retry queue.", ex)
+                        dataTransmissionService.addToRetryQueue(payload)
+                    }
+                }
+            },
+        )
 
         return PaymentOutput(
             orderId = orderId,
-            paidAmount = updatedAggregate.order.payableAmount(),
+            paidAmount = order.payableAmount(),
             remainingBalance = updatedUser.balance,
             status = PaymentStatus.SUCCESS,
             paidAt = paidAt,
@@ -293,27 +300,27 @@ class OrderService(
         return OrderMonth.from(zoned.year, zoned.monthValue)
     }
 
-    private fun OrderAggregate.toOutput(): Output =
+    private fun Order.toOutput(): Output =
         Output(
-            orderId = order.id,
-            userId = order.userId,
-            status = order.status,
-            recipientName = order.recipientName,
-            orderedAt = order.orderedAt,
-            paidAt = order.paidAt,
-            orderMonth = order.orderMonth,
-            totalAmount = order.totalAmount,
-            discountAmount = order.discountAmount,
-            payableAmount = order.payableAmount(),
-            imageUrl = order.imageUrl,
-            memo = order.memo,
+            orderId = requireId(),
+            userId = userId,
+            status = status,
+            recipientName = recipientName,
+            orderedAt = orderedAt,
+            paidAt = paidAt,
+            orderMonth = orderMonth,
+            totalAmount = totalAmount,
+            discountAmount = discountAmount,
+            payableAmount = payableAmount(),
+            imageUrl = imageUrl,
+            memo = memo,
             items = items.map { it.toOutput() },
             discounts = discounts.map { it.toOutput() },
         )
 
     private fun OrderItem.toOutput(): Output.Item =
         Output.Item(
-            orderItemId = id,
+            orderItemId = requireId(),
             productId = productId,
             productItemId = productItemId,
             productName = productName,
@@ -326,7 +333,7 @@ class OrderService(
 
     private fun OrderDiscount.toOutput(): Output.Discount =
         Output.Discount(
-            discountId = id,
+            discountId = requireId(),
             type = type,
             referenceId = referenceId,
             amount = price,

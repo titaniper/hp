@@ -1,17 +1,18 @@
 package io.joopang.services.order.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.infrastructure.jpa.OrderMonthAttributeConverter
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Convert
 import jakarta.persistence.Entity
-import jakarta.persistence.Index
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
+import jakarta.persistence.FetchType
+import jakarta.persistence.Index
+import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import java.time.Instant
 
@@ -30,11 +31,7 @@ import java.time.Instant
     ],
 )
 class Order(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(name = "user_id", columnDefinition = "BIGINT", nullable = false)
     var userId: Long = 0,
 
@@ -66,10 +63,26 @@ class Order(
 
     @Column(columnDefinition = "TEXT")
     var memo: String? = null,
-) {
+) : BaseEntity(id) {
+
+    @OneToMany(
+        mappedBy = "order",
+        fetch = FetchType.LAZY,
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+    )
+    val items: MutableList<OrderItem> = mutableListOf()
+
+    @OneToMany(
+        mappedBy = "order",
+        fetch = FetchType.LAZY,
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+    )
+    val discounts: MutableSet<OrderDiscount> = mutableSetOf()
 
     init {
-        if (id != 0L || recipientName.isNotBlank()) {
+        if (id != null || recipientName.isNotBlank()) {
             require(recipientName.isNotBlank()) { "Recipient name must not be blank" }
             require(totalAmount >= Money.ZERO) { "Total amount cannot be negative" }
             require(discountAmount >= Money.ZERO) { "Discount amount cannot be negative" }
@@ -81,12 +94,22 @@ class Order(
 
     fun canPay(): Boolean = status == OrderStatus.PENDING
 
-    fun markPaid(paidTimestamp: Instant): Order =
-        copy(status = OrderStatus.PAID, paidAt = paidTimestamp)
+    fun markPaid(paidTimestamp: Instant) {
+        status = OrderStatus.PAID
+        paidAt = paidTimestamp
+    }
+
+    fun addItem(item: OrderItem) {
+        items += item.also { it.order = this }
+    }
+
+    fun addDiscount(discount: OrderDiscount) {
+        discounts += discount.also { it.order = this }
+    }
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         userId = 0,
         imageUrl = null,
         status = OrderStatus.PENDING,
@@ -99,30 +122,4 @@ class Order(
         memo = null,
     )
 
-    fun copy(
-        id: Long = this.id,
-        userId: Long = this.userId,
-        imageUrl: String? = this.imageUrl,
-        status: OrderStatus = this.status,
-        recipientName: String = this.recipientName,
-        orderMonth: OrderMonth = this.orderMonth,
-        totalAmount: Money = this.totalAmount,
-        discountAmount: Money = this.discountAmount,
-        orderedAt: Instant = this.orderedAt,
-        paidAt: Instant? = this.paidAt,
-        memo: String? = this.memo,
-    ): Order =
-        Order(
-            id = id,
-            userId = userId,
-            imageUrl = imageUrl,
-            status = status,
-            recipientName = recipientName,
-            orderMonth = orderMonth,
-            totalAmount = totalAmount,
-            discountAmount = discountAmount,
-            orderedAt = orderedAt,
-            paidAt = paidAt,
-            memo = memo,
-        )
 }

@@ -1,11 +1,13 @@
 package io.joopang.services.payment.application
 
 import io.joopang.services.common.domain.Money
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.payment.domain.Payment
 import io.joopang.services.payment.domain.PaymentMethod
 import io.joopang.services.payment.domain.PaymentNotFoundException
 import io.joopang.services.payment.domain.PaymentStatus
 import io.joopang.services.payment.infrastructure.PaymentRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -20,18 +22,18 @@ class PaymentService(
         if (orderId == null) {
             paymentRepository.findAll()
         } else {
-            paymentRepository.findByOrderId(orderId)
+            paymentRepository.findAllByOrderId(orderId)
         }.map { it.toOutput() }
 
     fun getPayment(id: Long): Output =
-        paymentRepository.findById(id)
+        paymentRepository.findByIdOrNull(id)
             ?.toOutput()
             ?: throw PaymentNotFoundException(id.toString())
 
     @Transactional
     fun registerPayment(command: RegisterPaymentCommand): Output {
         val payment = Payment(
-            id = command.id ?: 0,
+            id = command.id,
             orderId = command.orderId,
             paymentGateway = command.paymentGateway,
             paymentMethod = command.paymentMethod,
@@ -49,7 +51,7 @@ class PaymentService(
 
     private fun Payment.toOutput(): Output =
         Output(
-            id = id,
+            id = requireId(),
             orderId = orderId,
             paymentGateway = paymentGateway,
             paymentMethod = paymentMethod,

@@ -1,13 +1,16 @@
 package io.joopang.services.order.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Quantity
 import jakarta.persistence.Column
+import jakarta.persistence.ConstraintMode
 import jakarta.persistence.Entity
+import jakarta.persistence.FetchType
+import jakarta.persistence.ForeignKey
 import jakarta.persistence.Index
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 
 @Entity
@@ -25,14 +28,7 @@ import jakarta.persistence.Table
     ],
 )
 class OrderItem(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
-    @Column(name = "order_id", columnDefinition = "BIGINT", nullable = false)
-    var orderId: Long? = null,
-
+    id: Long? = null,
     @Column(name = "product_id", columnDefinition = "BIGINT")
     var productId: Long? = null,
 
@@ -56,10 +52,18 @@ class OrderItem(
 
     @Column(name = "refunded_quantity", nullable = false)
     var refundedQuantity: Quantity = Quantity(0),
-) {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+        name = "order_id",
+        nullable = false,
+        foreignKey = ForeignKey(ConstraintMode.NO_CONSTRAINT),
+    )
+    var order: Order? = null,
+) : BaseEntity(id) {
 
     init {
-        if (id != 0L || productName.isNotBlank()) {
+        if (id != null || productName.isNotBlank()) {
             require(productName.isNotBlank()) { "Product name must not be blank" }
             require(subtotal == expectedSubtotal()) {
                 "Subtotal must equal unit price x quantity"
@@ -77,8 +81,7 @@ class OrderItem(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
-        orderId = null,
+        id = null,
         productId = null,
         productItemId = null,
         productName = "",
@@ -90,8 +93,7 @@ class OrderItem(
     )
 
     fun copy(
-        id: Long = this.id,
-        orderId: Long? = this.orderId,
+        id: Long? = this.id,
         productId: Long? = this.productId,
         productItemId: Long? = this.productItemId,
         productName: String = this.productName,
@@ -103,7 +105,6 @@ class OrderItem(
     ): OrderItem =
         OrderItem(
             id = id,
-            orderId = orderId,
             productId = productId,
             productItemId = productItemId,
             productName = productName,
@@ -112,5 +113,7 @@ class OrderItem(
             subtotal = subtotal,
             refundedAmount = refundedAmount,
             refundedQuantity = refundedQuantity,
-        )
+        ).also {
+            it.order = order
+        }
 }

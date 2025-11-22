@@ -1,22 +1,16 @@
 package io.joopang.services.seller.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 
 @Entity
 @Table(name = "sellers")
 class Seller(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(nullable = false)
     var name: String = "",
 
@@ -26,7 +20,7 @@ class Seller(
 
     @Column(name = "owner_id", columnDefinition = "BIGINT", nullable = false)
     var ownerId: Long = 0,
-) {
+) : BaseEntity(id) {
     init {
         if (ownerId != 0L || name.isNotBlank()) {
             require(name.isNotBlank()) { "Seller name must not be blank" }
@@ -35,7 +29,7 @@ class Seller(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         name = "",
         type = SellerType.BRAND,
         ownerId = 0,

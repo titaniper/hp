@@ -42,7 +42,7 @@
 
 ### Load Testing (k6)
 - `k6/` 디렉터리에 smoke/load 시나리오, 공용 헬퍼, 환경별 설정이 준비돼 있습니다.
-- 예시 실행: `K6_ENV=local k6 run k6/main.js` (기본 smoke), `SCENARIO=load K6_ENV=local k6 run k6/main.js`
+- 예시 실행: `K6_ENV=local k6 run k6/main.js` (기본 smoke), `SCENARIO=load K6_ENV=local k6 run k6/main.js`, `SCENARIO=rush K6_ENV=local k6 run k6/main.js`
 - 자세한 구조와 데이터 준비 방법은 `k6/README.md`를 참고하세요.
 
 ### Test Profile (H2)

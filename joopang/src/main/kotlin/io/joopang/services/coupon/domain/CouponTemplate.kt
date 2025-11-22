@@ -1,13 +1,11 @@
 package io.joopang.services.coupon.domain
 
+import io.joopang.services.common.domain.BaseEntity
 import io.joopang.services.common.domain.Money
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.Instant
@@ -15,11 +13,7 @@ import java.time.Instant
 @Entity
 @Table(name = "coupon_templates")
 class CouponTemplate(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "BIGINT")
-    var id: Long = 0,
-
+    id: Long? = null,
     @Column(nullable = false)
     var title: String = "TEMPLATE",
 
@@ -54,7 +48,7 @@ class CouponTemplate(
 
     @Column(name = "end_at")
     var endAt: Instant? = null,
-) {
+) : BaseEntity(id) {
 
     init {
         require(title.isNotBlank()) { "Coupon template title must not be blank" }
@@ -79,7 +73,7 @@ class CouponTemplate(
         limitQuantity <= 0 || currentUserIssuedCount < limitQuantity
 
     fun copy(
-        id: Long = this.id,
+        id: Long? = this.id,
         title: String = this.title,
         type: CouponType = this.type,
         value: BigDecimal = this.value,
@@ -93,8 +87,8 @@ class CouponTemplate(
         endAt: Instant? = this.endAt,
     ): CouponTemplate =
         CouponTemplate(
-            id = id,
-            title = title,
+        id = id,
+        title = title,
             type = type,
             value = value,
             status = status,
@@ -115,7 +109,7 @@ class CouponTemplate(
 
     @Suppress("unused")
     constructor() : this(
-        id = 0,
+        id = null,
         title = "TEMPLATE",
         type = CouponType.AMOUNT,
         value = BigDecimal.ZERO,
