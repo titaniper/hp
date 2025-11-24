@@ -1,5 +1,6 @@
 package io.joopang.services.product.application
 
+import io.joopang.common.cache.CacheNames
 import io.joopang.services.common.application.CacheService
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Percentage
@@ -16,6 +17,7 @@ import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -129,6 +131,12 @@ class ProductService(
     }
 
     @TrackPerformance("getTopProducts")
+    @Cacheable(
+        cacheNames = [CacheNames.POPULAR_PRODUCTS],
+        key = "#days + ':' + #limit",
+        unless = "#result.products.isEmpty()",
+        sync = true,
+    )
     fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
