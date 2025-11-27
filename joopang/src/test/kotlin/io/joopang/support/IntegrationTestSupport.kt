@@ -2,12 +2,16 @@ package io.joopang.support
 
 import org.junit.jupiter.api.Tag
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.test.context.ActiveProfiles
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
+import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.support.TransactionTemplate
+import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.MySQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.utility.DockerImageName
 
 @Testcontainers
 @ActiveProfiles("test")
@@ -28,6 +32,20 @@ abstract class IntegrationTestSupport {
             withUsername("joopang")
             withPassword("joopang")
             withTmpFs(mapOf("/var/lib/mysql" to "rw,size=256m"))
+        }
+
+        @JvmStatic
+        @Container
+        @ServiceConnection
+        val redis: GenericContainer<*> = GenericContainer(DockerImageName.parse("redis:7.2")).apply {
+            withExposedPorts(6379)
+        }
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun registerRedisProperties(registry: DynamicPropertyRegistry) {
+            registry.add("spring.data.redis.host") { redis.host }
+            registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
         }
     }
 }

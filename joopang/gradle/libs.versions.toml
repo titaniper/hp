@@ -58,5 +58,6 @@ assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 spring_mockk = { module = "com.ninja-squad:springmockk", version.ref = "spring_mockk" }
 springdoc_openapi_starter_webmvc_ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc_openapi" }
 p6spy_spring_boot_starter = { module = "com.github.gavlyukovskiy:p6spy-spring-boot-starter", version.ref = "p6spy" }
+redisson_client = { module = "org.redisson:redisson-spring-boot-starter", version.ref = "redisson" }
 [bundles]
 testcontainers_mysql = ["test_containers_mysql", "spring_boot_testcontainers", "test_containers_junit_jupiter","spring_boot_starter_test"]

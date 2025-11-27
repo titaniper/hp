@@ -49,6 +49,7 @@ dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.data.redis)
+    implementation(libs.redisson.client)
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
