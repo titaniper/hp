@@ -45,11 +45,11 @@ class CouponService(
             throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
         }
 
-        val existingCoupon = couponRepository.findByUserIdAndCouponTemplateId(userId, templateId)
-            ?.takeIf { it.status == CouponStatus.AVAILABLE }
-        if (existingCoupon != null) {
-            throw IllegalStateException("이미 발급받은 쿠폰입니다")
-        }
+//        val existingCoupon = couponRepository.findByUserIdAndCouponTemplateId(userId, templateId)
+//            ?.takeIf { it.status == CouponStatus.AVAILABLE }
+//        if (existingCoupon != null) {
+//            throw IllegalStateException("이미 발급받은 쿠폰입니다")
+//        }
 
         val userCoupons = couponRepository.findAllByUserId(userId)
         val issuedCount = userCoupons.count { it.couponTemplateId == templateId }

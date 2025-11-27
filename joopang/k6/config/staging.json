@@ -13,7 +13,15 @@
     "rushProductId": 1000,
     "rushProductItemId": 1500,
     "rushUserStart": 1000,
-    "rushUserCount": 2000
+    "rushUserCount": 2000,
+    "couponIssueTemplateId": 900,
+    "couponIssueUserStart": 1000,
+    "couponIssueUserCount": 2000,
+    "purchaseProductId": 1000,
+    "purchaseProductItemId": 1500,
+    "purchaseQuantity": 1,
+    "purchaseUserStart": 1000,
+    "purchaseUserCount": 2000
   },
   "thresholds": {
     "http_req_duration": ["p(95)<250", "p(99)<400"],
@@ -36,6 +44,22 @@
     "rush": {
       "vus": 2000,
       "maxDuration": "5m"
+    },
+    "couponIssue": {
+      "stages": [
+        { "duration": "1m", "target": 100 },
+        { "duration": "4m", "target": 300 },
+        { "duration": "1m", "target": 0 }
+      ],
+      "gracefulStop": "45s"
+    },
+    "purchaseStock": {
+      "stages": [
+        { "duration": "2m", "target": 60 },
+        { "duration": "5m", "target": 150 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "gracefulStop": "1m"
     }
   }
 }

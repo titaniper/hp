@@ -68,7 +68,7 @@ class CouponServiceIntegrationTest @Autowired constructor(
                     userRepository.save(
                         baseUser.copy(
                             id = null,
-                            email = Email("coupon-${System.nanoTime()}@joopang.com"),
+                            email = Email("customer@joopang.com"),
                         ),
                     )
                 }
