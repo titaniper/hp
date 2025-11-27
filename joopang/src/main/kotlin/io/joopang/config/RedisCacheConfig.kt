@@ -1,5 +1,7 @@
 package io.joopang.config
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator
 import io.joopang.common.cache.CacheNames
 import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -22,9 +24,18 @@ class RedisCacheConfig {
     fun redisCacheManager(
         connectionFactory: RedisConnectionFactory,
         popularProductsCacheProperties: PopularProductsCacheProperties,
+        objectMapper: ObjectMapper,
     ): RedisCacheManager {
-        val defaultCacheConfig = cacheConfig(Duration.ofMinutes(5))
-        val popularProductsCacheConfig = cacheConfig(Duration.ofSeconds(popularProductsCacheProperties.ttlSeconds))
+        val serializer = GenericJackson2JsonRedisSerializer(
+            objectMapper.copy().apply {
+                activateDefaultTyping(
+                    LaissezFaireSubTypeValidator.instance,
+                    ObjectMapper.DefaultTyping.NON_FINAL,
+                )
+            },
+        )
+        val defaultCacheConfig = cacheConfig(Duration.ofMinutes(5), serializer)
+        val popularProductsCacheConfig = cacheConfig(Duration.ofSeconds(popularProductsCacheProperties.ttlSeconds), serializer)
 
         return RedisCacheManager.builder(connectionFactory)
             .cacheDefaults(defaultCacheConfig)
@@ -35,13 +46,16 @@ class RedisCacheConfig {
             .build()
     }
 
-    private fun cacheConfig(ttl: Duration): RedisCacheConfiguration =
+    private fun cacheConfig(
+        ttl: Duration,
+        serializer: GenericJackson2JsonRedisSerializer,
+    ): RedisCacheConfiguration =
         RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(ttl)
             .disableCachingNullValues()
             .prefixCacheNameWith("joopang:")
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(GenericJackson2JsonRedisSerializer()),
+                RedisSerializationContext.SerializationPair.fromSerializer(serializer),
             )
 
 }

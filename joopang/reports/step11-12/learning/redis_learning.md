@@ -202,3 +202,13 @@ class InventoryService(
   * **Memory Usage**: 메모리 사용률 (80% 이상 시 Eviction 정책 확인)
   * **Connected Clients**: 연결된 클라이언트 수
   * **Commands per second**: 초당 명령 처리 수
+
+
+
+
+```
+keys joopang:popularProducts:*
+
+get joopang:popularProducts::3:5
+```
+

@@ -1,0 +1,168 @@
+{
+    "metrics": {
+        "http_req_duration{expected_response:true}": {
+            "avg": 38.82,
+            "min": 38.82,
+            "med": 38.82,
+            "max": 38.82,
+            "p(90)": 38.82,
+            "p(95)": 38.82
+        },
+        "popular_products_duration": {
+            "avg": 9.137692307692307,
+            "min": 4.407,
+            "med": 6.579,
+            "max": 38.82,
+            "p(90)": 7.9364,
+            "p(95)": 20.293199999999985
+        },
+        "http_req_sending": {
+            "avg": 0.09392307692307693,
+            "min": 0.022,
+            "med": 0.056,
+            "max": 0.626,
+            "p(90)": 0.0924,
+            "p(95)": 0.30679999999999974
+        },
+        "http_req_blocked": {
+            "avg": 0.4384615384615384,
+            "min": 0.005,
+            "med": 0.425,
+            "max": 1.192,
+            "p(90)": 0.5962,
+            "p(95)": 0.8379999999999996
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "iteration_duration": {
+            "avg": 1011.2245556666667,
+            "min": 1005.898583,
+            "med": 1008.6222295,
+            "max": 1042.603959,
+            "p(90)": 1010.3865715,
+            "p(95)": 1024.904684
+        },
+        "http_req_waiting": {
+            "avg": 8.876846153846154,
+            "min": 4.303,
+            "med": 6.432,
+            "max": 38.439,
+            "p(90)": 7.667,
+            "p(95)": 19.981199999999983
+        },
+        "checks": {
+            "passes": 2,
+            "fails": 24,
+            "thresholds": {
+                "rate>0.99": true
+            },
+            "value": 0.07692307692307693
+        },
+        "http_req_duration": {
+            "avg": 9.137692307692307,
+            "min": 4.407,
+            "med": 6.579,
+            "max": 38.82,
+            "p(90)": 7.9364,
+            "p(95)": 20.293199999999985,
+            "thresholds": {
+                "p(95)<350": false
+            }
+        },
+        "http_reqs": {
+            "count": 13,
+            "rate": 0.8752069948697386
+        },
+        "http_req_failed": {
+            "passes": 12,
+            "fails": 1,
+            "value": 0.9230769230769231
+        },
+        "data_sent": {
+            "count": 2912,
+            "rate": 196.04636685082144
+        },
+        "vus": {
+            "value": 14,
+            "min": 1,
+            "max": 14
+        },
+        "data_received": {
+            "count": 3385,
+            "rate": 227.89043674108194
+        },
+        "group_duration": {
+            "avg": 10.002077230769231,
+            "min": 4.770167,
+            "med": 7.413167,
+            "max": 41.463292,
+            "p(90)": 8.9596006,
+            "p(95)": 22.046342199999984
+        },
+        "vus_max": {
+            "value": 80,
+            "min": 80,
+            "max": 80
+        },
+        "http_req_connecting": {
+            "p(90)": 0.4516,
+            "p(95)": 0.4744,
+            "avg": 0.32392307692307687,
+            "min": 0,
+            "med": 0.357,
+            "max": 0.505
+        },
+        "iterations": {
+            "count": 12,
+            "rate": 0.8078833798797587
+        },
+        "http_req_receiving": {
+            "avg": 0.16692307692307695,
+            "min": 0.082,
+            "med": 0.143,
+            "max": 0.287,
+            "p(90)": 0.2654,
+            "p(95)": 0.2774
+        },
+        "popular_products_errors": {
+            "count": 12,
+            "rate": 0.8078833798797587
+        }
+    },
+    "root_group": {
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "popular-products": {
+                "name": "popular-products",
+                "path": "::popular-products",
+                "id": "d90b148ff5bb1ae24badf200fc79a8b1",
+                "groups": {},
+                "checks": {
+                        "popular products fetched": {
+                            "passes": 1,
+                            "fails": 12,
+                            "name": "popular products fetched",
+                            "path": "::popular-products::popular products fetched",
+                            "id": "6f5543b0ace4d07315d15139068a979f"
+                        },
+                        "has products array": {
+                            "path": "::popular-products::has products array",
+                            "id": "4b1930fdff6efa409aed1f472f781adb",
+                            "passes": 1,
+                            "fails": 12,
+                            "name": "has products array"
+                        }
+                    }
+            }
+        },
+        "checks": {},
+        "name": ""
+    }
+}
