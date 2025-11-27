@@ -24,7 +24,7 @@
 | `condition` | 메서드 실행 전 평가. `true`일 때만 캐시를 사용한다. | 예: `condition = "#days <= 30"` → 장기간 요청은 항상 DB 조회. |
 | `unless` | 메서드 실행 후 평가. `true`면 결과를 캐시에 저장하지 않는다. | 예: `unless = "#result == null"` | 
 | `sync` | `true`면 같은 키에 대한 동시 미스 시 하나의 쓰레드만 메서드를 실행하도록 보호. | Cache Stampede 완화에 활용. |
-| `unless = "#result.products.isEmpty()"`와 같이 `#result` 접근 가능. JSON 직렬화 시 null이 캐시되지 않도록 하려면 `disableCachingNullValues()` 설정도 병행한다.
+| `unless = "#result.products.isEmpty()"`와 같이 `#result` 접근 가능. JSON 직렬화 시 null이 캐시되지 않도록 하려면 `disableCachingNullValues()` 설정도 병행한다. 단, `sync = true`를 사용하는 경우에는 `@CacheEvict`, `@CachePut` 등 다른 캐시 애노테이션을 같은 메서드에 함께 붙일 수 없으므로, 필요 시 코드에서 직접 `CacheManager`를 통해 `evict`를 호출해야 한다.
 
 ### 2.1 실제 적용 예시
 ```kotlin

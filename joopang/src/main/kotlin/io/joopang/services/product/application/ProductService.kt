@@ -17,8 +17,8 @@ import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
-import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -33,6 +33,7 @@ class ProductService(
 
     // TODO: cachable 로 개선
     private val cacheService: CacheService,
+    private val cacheManager: CacheManager,
 ) {
 
     fun getProducts(
@@ -137,11 +138,6 @@ class ProductService(
         key = "#days + ':' + #limit",
         sync = true,
     )
-    @CacheEvict(
-        cacheNames = [CacheNames.POPULAR_PRODUCTS],
-        key = "#days + ':' + #limit",
-        condition = "#result.products.isEmpty()",
-    )
     fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
@@ -149,6 +145,7 @@ class ProductService(
         val cutoff = Instant.now().minus(days, ChronoUnit.DAYS)
         val rows = productRepository.findPopularProductsSince(cutoff, limit)
         if (rows.isEmpty()) {
+            evictPopularProducts(days, limit)
             return TopProductsOutput(period = "${days}days", products = emptyList())
         }
 
@@ -167,10 +164,14 @@ class ProductService(
             )
         }
 
-        return TopProductsOutput(
+        val output = TopProductsOutput(
             period = "${days}days",
             products = ranked,
         )
+        if (output.products.isEmpty()) {
+            evictPopularProducts(days, limit)
+        }
+        return output
     }
 
     fun checkStock(productId: Long, quantity: Long): StockCheckOutput {
@@ -202,6 +203,11 @@ class ProductService(
                 cacheService.evict(buildProductsCacheKey(categoryId, sort))
             }
         }
+    }
+
+    private fun evictPopularProducts(days: Long, limit: Int) {
+        // sync=true를 유지하려면 @Cacheable과 다른 캐시 애노테이션을 함께 쓸 수 없어 직접 CacheManager로 무효화한다.
+        cacheManager.getCache(CacheNames.POPULAR_PRODUCTS)?.evict("$days:$limit")
     }
 
     private fun productComparator(sort: ProductSort): Comparator<ProductWithItems> =
