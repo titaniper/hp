@@ -204,6 +204,52 @@ class ProductService(
     }
     ```
 
+### 3.4 Lua Script 기반 락 (원자적 획득/해제)
+*   **방식**: Redis의 `SET key value NX PX TTL` + `EVAL` 조합으로 락을 획득하고, Lua 스크립트로 락 해제 시 **현재 스레드가 락 소유자인지 원자적으로 검증**합니다.
+*   **특징**: 서버나 네트워크 장애로 TTL 이전에 애플리케이션이 죽더라도 Redis가 TTL을 기반으로 락을 자동 해제합니다. 또한 Lua 스크립트로 삭제 여부를 판단하므로 "남의 락을 잘못 해제"하는 문제를 방지할 수 있습니다.
+*   **장점**: 외부 라이브러리 없이 Redis 기본 명령만으로 구현 가능하며, 획득/해제 로직 모두 Redis 단일 스레드에서 실행되어 레이스 컨디션이 발생하지 않습니다.
+*   **코드 예시**:
+    ```kotlin
+    private val releaseScript = """
+        if redis.call('get', KEYS[1]) == ARGV[1] then
+            return redis.call('del', KEYS[1])
+        else
+            return 0
+        end
+    """.trimIndent()
+
+    fun <T> withRedisLock(key: String, ttl: Duration, block: () -> T): T {
+        val lockValue = UUID.randomUUID().toString()
+        val locked = redisTemplate.execute { connection ->
+            connection.stringCommands().set(
+                key.toByteArray(),
+                lockValue.toByteArray(),
+                Expiration.from(ttl),
+                SetOption.SET_IF_ABSENT
+            )
+        }
+        if (locked != true) {
+            throw LockAcquisitionException("failed to acquire $key")
+        }
+
+        try {
+            // !!! 트랜잭션은 반드시 락을 획득한 이후에 시작해야 함
+            return block()
+        } finally {
+            redisTemplate.execute { connection ->
+                connection.scriptingCommands().eval(
+                    releaseScript.toByteArray(),
+                    ReturnType.INTEGER,
+                    1,
+                    key.toByteArray(),
+                    lockValue.toByteArray()
+                )
+            }
+        }
+    }
+    ```
+    *   **실무 팁**: 락 키를 서비스명/도메인으로 네임스페이스화(`lock:order:123`)하고 TTL은 비즈니스 처리 시간보다 약간 길게 설정합니다. 필요 시 `renewal` 작업(Background thread로 TTL 연장)을 Lua 스크립트로 같이 구현하면 가비지 락 문제를 줄일 수 있습니다. 또한 비즈니스 로직 블록 안에서 트랜잭션을 시작하거나 별도 내부 메서드(@Transactional)를 호출하여 "락 획득 → 트랜잭션 시작 → 비즈니스 로직 → 트랜잭션 종료 → 락 해제" 순서를 강제합니다.
+
 ## 4. 분산 락 적용 범위
 
 *   **적절한 범위**:
