@@ -19,7 +19,7 @@
     "couponIssueTemplateId": 700,
     "couponIssueUserStart": 100,
     "couponIssueUserCount": 1,
-    "purchaseProductId": 400,
+    "purchaseProductId": 1000,
     "purchaseProductItemId": 500,
     "purchaseQuantity": 1,
     "purchaseUserStart": 1000,

@@ -19,7 +19,7 @@ decorator:
 joopang:
   cache:
     popular-products:
-      ttl-seconds: ${POPULAR_PRODUCTS_CACHE_TTL_SECONDS:60}
+      ttl-seconds: ${POPULAR_PRODUCTS_CACHE_TTL_SECONDS:1000}
   jobs:
     popular-products-cache-warmup:
       enabled: true

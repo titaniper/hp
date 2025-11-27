@@ -1,5 +1,6 @@
 package io.joopang.services.product.application
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import io.joopang.common.cache.CacheNames
 import io.joopang.services.common.application.CacheService
 import io.joopang.services.common.domain.Money
@@ -156,11 +157,11 @@ class ProductService(
         val ranked = rows.mapIndexed { index, row ->
             val aggregate = aggregatesById[row.productId]
                 ?: throw ProductNotFoundException(row.productId.toString())
-            TopProductOutput(
+            TopProductsOutput.TopProductOutput(
                 rank = index + 1,
-                product = aggregate.toOutput(),
+                product = aggregate.toOutput().toSummary(),
                 salesCount = row.salesCount,
-                revenue = row.revenue,
+                revenue = row.revenue.toBigDecimal(),
             )
         }
 
@@ -332,17 +333,48 @@ class ProductService(
         )
     }
 
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
     data class TopProductsOutput(
         val period: String,
         val products: List<TopProductOutput>,
-    )
+    ) {
+        @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+        data class TopProductOutput(
+            val rank: Int,
+            val product: ProductSummary,
+            val salesCount: Long,
+            val revenue: BigDecimal,
+        )
 
-    data class TopProductOutput(
-        val rank: Int,
-        val product: Output,
-        val salesCount: Long,
-        val revenue: Money,
-    )
+        @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+        data class ProductSummary(
+            val id: Long,
+            val name: String,
+            val code: String,
+            val description: String?,
+            val content: String?,
+            val status: ProductStatus,
+            val sellerId: Long,
+            val categoryId: Long,
+            val price: BigDecimal,
+            val discountRate: BigDecimal?,
+            val version: Int,
+            val viewCount: Int,
+            val salesCount: Int,
+            val items: List<ProductItemSummary>,
+        )
+
+        @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+        data class ProductItemSummary(
+            val id: Long,
+            val name: String,
+            val unitPrice: BigDecimal,
+            val description: String?,
+            val stock: BigDecimal,
+            val status: ProductItemStatus,
+            val code: String,
+        )
+    }
 
     data class StockCheckOutput(
         val available: Boolean,
@@ -353,4 +385,33 @@ class ProductService(
     companion object {
         private const val DEFAULT_CACHE_TTL_SECONDS = 60L
     }
+
+    private fun Output.toSummary(): TopProductsOutput.ProductSummary =
+        TopProductsOutput.ProductSummary(
+            id = id,
+            name = name,
+            code = code,
+            description = description,
+            content = content,
+            status = status,
+            sellerId = sellerId,
+            categoryId = categoryId,
+            price = price.toBigDecimal(),
+            discountRate = discountRate,
+            version = version,
+            viewCount = viewCount,
+            salesCount = salesCount,
+            items = items.map { it.toSummary() },
+        )
+
+    private fun Output.Item.toSummary(): TopProductsOutput.ProductItemSummary =
+        TopProductsOutput.ProductItemSummary(
+            id = id,
+            name = name,
+            unitPrice = unitPrice.toBigDecimal(),
+            description = description,
+            stock = stock.toBigDecimal(),
+            status = status,
+            code = code,
+        )
 }

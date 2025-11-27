@@ -21,7 +21,7 @@ function getUserId(vu, iteration) {
 export const options = {
   stages: scenarioConfig.stages || [
     { duration: '30s', target: 50 },
-    { duration: '2m', target: 150 },
+    { duration: '1m', target: 150 },
     { duration: '30s', target: 0 }
   ],
   thresholds: config.thresholds,

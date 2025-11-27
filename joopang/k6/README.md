@@ -15,6 +15,30 @@ SCENARIO=coupon_issue K6_ENV=local k6 run --out --out web-dashboard  --summary-e
 
 SCENARIO=popular-products K6_ENV=local k6 run --out web-dashboard  --summary-export pp_summary.json --vus 1 k6/main.js
 
+
+-- http://localhost:5665/ui/?endpoint=/
+K6_WEB_DASHBOARD_EXPORT=ppreport.html \
+K6_WEB_DASHBOARD=true \
+K6_WEB_DASHBOARD_EXPORT=ppreport.html \
+SCENARIO=popular-products K6_ENV=local k6 run --out web-dashboard  --summary-export pp_summary.json --vus 5  k6/main.js
+
+
+전; 3.3k	29.68/s
+    3.3k	27.32/s
+
+전; 3.3k	25.68/s
+    3.3k	27.84/s
+
+
+
+K6_WEB_DASHBOARD_EXPORT=ppreport.html \
+K6_WEB_DASHBOARD=true \
+K6_WEB_DASHBOARD_EXPORT=ppreport.html \
+SCENARIO=purchase-stock K6_ENV=local k6 run --out web-dashboard  --summary-export ps_summary.json --vus 5  k6/main.js
+
+
+
+
 ```
 
 

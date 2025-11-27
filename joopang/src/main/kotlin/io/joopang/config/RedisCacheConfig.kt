@@ -1,5 +1,6 @@
 package io.joopang.config
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator
 import io.joopang.common.cache.CacheNames
@@ -26,14 +27,14 @@ class RedisCacheConfig {
         popularProductsCacheProperties: PopularProductsCacheProperties,
         objectMapper: ObjectMapper,
     ): RedisCacheManager {
-        val serializer = GenericJackson2JsonRedisSerializer(
-            objectMapper.copy().apply {
-                activateDefaultTyping(
-                    LaissezFaireSubTypeValidator.instance,
-                    ObjectMapper.DefaultTyping.NON_FINAL,
-                )
-            },
-        )
+        val cacheObjectMapper = objectMapper.copy().apply {
+            activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY,
+            )
+        }
+        val serializer = GenericJackson2JsonRedisSerializer(cacheObjectMapper)
         val defaultCacheConfig = cacheConfig(Duration.ofMinutes(5), serializer)
         val popularProductsCacheConfig = cacheConfig(Duration.ofSeconds(popularProductsCacheProperties.ttlSeconds), serializer)
 

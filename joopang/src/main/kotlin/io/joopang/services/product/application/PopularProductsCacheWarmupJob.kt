@@ -21,7 +21,7 @@ class PopularProductsCacheWarmupJob(
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    @Scheduled(fixedDelayString = "\${joopang.jobs.popular-products-cache-warmup.refresh-interval-ms:55000}")
+    @Scheduled(fixedDelayString = "\${joopang.jobs.popular-products-cache-warmup.refresh-interval-ms:111155000}")
     fun refreshPopularProductsCache() {
         properties.targets
             .distinct()
