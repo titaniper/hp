@@ -1,5 +1,6 @@
 package io.joopang.services.order.application
 
+import io.joopang.common.lock.DistributedLock
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.OrderMonth
 import io.joopang.services.common.domain.Quantity
@@ -47,7 +48,6 @@ class OrderService(
     private val userRepository: UserRepository,
     private val couponRepository: CouponRepository,
     private val dataTransmissionService: OrderDataTransmissionService,
-    private val productLockManager: ProductLockManager,
 ) {
     private val logger = LoggerFactory.getLogger(OrderService::class.java)
 
@@ -217,53 +217,71 @@ class OrderService(
 
         items.groupBy { it.productId }
             .forEach { (productId, productItems) ->
-                productLockManager.withProductLock(productId) {
-                    val aggregate = productRepository.findById(productId)
-                        ?: throw ProductNotFoundException(productId.toString())
-
-                    productItems.forEach { itemCommand ->
-                        val productItemId = itemCommand.productItemId
-                            ?: throw ProductItemNotFoundException(productId.toString(), "null")
-                        val currentItem = aggregate.items.firstOrNull { it.id == productItemId }
-                            ?: throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
-
-                        if (!currentItem.isActive()) {
-                            throw ProductItemInactiveException(productId.toString(), productItemId.toString())
-                        }
-
-                        val requested = StockQuantity.of(itemCommand.quantity.toLong())
-                        if (!currentItem.stock.isGreaterOrEqual(requested)) {
-                            throw InsufficientStockException(productId.toString(), productItemId.toString())
-                        }
-
-                        val consumed = productRepository.consumeStock(productItemId, itemCommand.quantity.toLong())
-                        if (!consumed) {
-                            logger.warn(
-                                "Failed to consume stock. productId={}, productItemId={}, requested={}",
-                                productId,
-                                productItemId,
-                                itemCommand.quantity,
-                            )
-                            throw InsufficientStockException(productId.toString(), productItemId.toString())
-                        }
-
-                        val quantity = Quantity(itemCommand.quantity)
-                        val lineSubtotal = currentItem.unitPrice * quantity.value
-                        subtotal += lineSubtotal
-                        drafts += OrderItemDraft(
-                            productId = productId,
-                            productName = aggregate.product.name,
-                            productItemId = productItemId,
-                            quantity = quantity,
-                            unitPrice = currentItem.unitPrice,
-                            subtotal = lineSubtotal,
-                        )
-                    }
-
-                }
+                val result = reserveStockForProduct(productId, productItems)
+                drafts += result.drafts
+                subtotal += result.subtotal
             }
 
         return ReservationResult(drafts = drafts, subtotal = subtotal)
+    }
+
+    @DistributedLock(
+        prefix = PRODUCT_LOCK_PREFIX,
+        key = "#productId",
+        waitTime = PRODUCT_LOCK_WAIT_SECONDS,
+        leaseTime = PRODUCT_LOCK_LEASE_SECONDS,
+        failureMessage = "상품 재고 정리 중입니다. 잠시 후 다시 시도해주세요.",
+    )
+    private fun reserveStockForProduct(
+        productId: Long,
+        productItems: List<CreateOrderItemCommand>,
+    ): ProductReservation {
+        val aggregate = productRepository.findById(productId)
+            ?: throw ProductNotFoundException(productId.toString())
+
+        val drafts = mutableListOf<OrderItemDraft>()
+        var subtotal = Money.ZERO
+
+        productItems.forEach { itemCommand ->
+            val productItemId = itemCommand.productItemId
+                ?: throw ProductItemNotFoundException(productId.toString(), "null")
+            val currentItem = aggregate.items.firstOrNull { it.id == productItemId }
+                ?: throw ProductItemNotFoundException(productId.toString(), productItemId.toString())
+
+            if (!currentItem.isActive()) {
+                throw ProductItemInactiveException(productId.toString(), productItemId.toString())
+            }
+
+            val requested = StockQuantity.of(itemCommand.quantity.toLong())
+            if (!currentItem.stock.isGreaterOrEqual(requested)) {
+                throw InsufficientStockException(productId.toString(), productItemId.toString())
+            }
+
+            val consumed = productRepository.consumeStock(productItemId, itemCommand.quantity.toLong())
+            if (!consumed) {
+                logger.warn(
+                    "Failed to consume stock. productId={}, productItemId={}, requested={}",
+                    productId,
+                    productItemId,
+                    itemCommand.quantity,
+                )
+                throw InsufficientStockException(productId.toString(), productItemId.toString())
+            }
+
+            val quantity = Quantity(itemCommand.quantity)
+            val lineSubtotal = currentItem.unitPrice * quantity.value
+            subtotal += lineSubtotal
+            drafts += OrderItemDraft(
+                productId = productId,
+                productName = aggregate.product.name,
+                productItemId = productItemId,
+                quantity = quantity,
+                unitPrice = currentItem.unitPrice,
+                subtotal = lineSubtotal,
+            )
+        }
+
+        return ProductReservation(drafts = drafts, subtotal = subtotal)
     }
 
     private fun validateCoupon(coupon: Coupon) {
@@ -425,8 +443,19 @@ class OrderService(
         val subtotal: Money,
     )
 
+    private data class ProductReservation(
+        val drafts: List<OrderItemDraft>,
+        val subtotal: Money,
+    )
+
     private data class CouponResult(
         val coupon: Coupon,
         val discountAmount: Money,
     )
+
+    companion object {
+        private const val PRODUCT_LOCK_PREFIX = "lock:product:"
+        private const val PRODUCT_LOCK_WAIT_SECONDS = 2L
+        private const val PRODUCT_LOCK_LEASE_SECONDS = 5L
+    }
 }

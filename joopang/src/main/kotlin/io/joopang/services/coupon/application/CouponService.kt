@@ -1,5 +1,6 @@
 package io.joopang.services.coupon.application
 
+import io.joopang.common.lock.DistributedLock
 import io.joopang.services.common.domain.requireId
 import io.joopang.services.coupon.domain.Coupon
 import io.joopang.services.coupon.domain.CouponStatus
@@ -11,7 +12,6 @@ import io.joopang.services.user.infrastructure.UserRepository
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -21,41 +21,17 @@ class CouponService(
     private val couponRepository: CouponRepository,
     private val couponTemplateRepository: CouponTemplateRepository,
     private val userRepository: UserRepository,
-    private val couponLockManager: CouponLockManager,
-    private val transactionTemplate: TransactionTemplate,
 ) {
 
-    fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
-        return couponLockManager.withTemplateLock(command.couponTemplateId) {
-            transactionTemplate.execute {
-                issueCouponInTransaction(command)
-            } ?: throw IllegalStateException("쿠폰 발급 중 문제가 발생했습니다")
-        }
-    }
-
+    @DistributedLock(
+        prefix = COUPON_LOCK_PREFIX,
+        key = "#command.couponTemplateId",
+        waitTime = LOCK_WAIT_SECONDS,
+        leaseTime = LOCK_LEASE_SECONDS,
+        failureMessage = "쿠폰 발급 요청이 많습니다. 잠시 후 다시 시도해주세요.",
+    )
     @Transactional
-    fun getUserCoupons(userId: Long): List<Output> {
-        val user = userRepository.findByIdOrNull(userId)
-            ?: throw UserNotFoundException(userId.toString())
-        val persistedUserId = user.requireId()
-
-        val now = Instant.now()
-        return couponRepository.findAllByUserId(persistedUserId)
-            .map { coupon ->
-                val shouldExpire = coupon.status == CouponStatus.AVAILABLE &&
-                    coupon.expiredAt?.let { now.isAfter(it) } == true
-                val current = if (shouldExpire) {
-                    val expired = coupon.expire()
-                    couponRepository.save(expired)
-                } else {
-                    coupon
-                }
-                current
-            }
-            .map { it.toOutput() }
-    }
-
-    private fun issueCouponInTransaction(command: IssueCouponCommand): IssueCouponOutput {
+    fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
         val user = userRepository.findByIdOrNull(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
         val userId = user.requireId()
@@ -107,6 +83,28 @@ class CouponService(
         )
     }
 
+    @Transactional
+    fun getUserCoupons(userId: Long): List<Output> {
+        val user = userRepository.findByIdOrNull(userId)
+            ?: throw UserNotFoundException(userId.toString())
+        val persistedUserId = user.requireId()
+
+        val now = Instant.now()
+        return couponRepository.findAllByUserId(persistedUserId)
+            .map { coupon ->
+                val shouldExpire = coupon.status == CouponStatus.AVAILABLE &&
+                    coupon.expiredAt?.let { now.isAfter(it) } == true
+                val current = if (shouldExpire) {
+                    val expired = coupon.expire()
+                    couponRepository.save(expired)
+                } else {
+                    coupon
+                }
+                current
+            }
+            .map { it.toOutput() }
+    }
+
     private fun Coupon.toOutput(): Output =
         Output(
             id = requireId(),
@@ -141,4 +139,10 @@ class CouponService(
         val usedAt: Instant?,
         val orderId: Long?,
     )
+
+    companion object {
+        private const val COUPON_LOCK_PREFIX = "lock:coupon-template:"
+        private const val LOCK_WAIT_SECONDS = 2L
+        private const val LOCK_LEASE_SECONDS = 5L
+    }
 }

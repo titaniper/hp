@@ -10,9 +10,9 @@
 
 - **Redisson 도입**: `gradle/libs.versions.toml`과 `build.gradle.kts`에 `org.redisson:redisson-spring-boot-starter` 의존성을 추가해 Redisson 클라이언트를 사용할 수 있도록 했다. Pub/Sub 기반 대기열과 Watchdog 갱신을 그대로 활용해 네이티브 Redis `SETNX` 구현보다 안정성을 확보했다.
 - **RedissonClient 구성**: `RedissonConfig`(`src/main/kotlin/io/joopang/config/RedissonConfig.kt`)에서 Spring `RedisProperties`를 주입받아 단일 서버 모드 구성을 생성하고, 비밀번호/DB 인덱스를 프로퍼티 기준으로 오버라이드하도록 했다. Bean destroy 시점에는 `shutdown()`을 호출해 커넥션을 정리한다.
-- **분산 락 구현**: `CouponLockManagerImpl`(`src/main/kotlin/io/joopang/services/coupon/infrastructure/CouponLockManagerImpl.kt`)이 `ConcurrentHashMap` 대신 Redisson `RLock`을 사용하도록 재작성되었다. 템플릿별 키(`lock:coupon-template:<id>`)로 락을 얻고, 2초 이내에 락을 획득하지 못하면 사용자에게 재시도를 안내한다. 스레드 인터럽트 시에는 즉시 중단하고 `IllegalStateException`으로 감싼다.
-- **트랜잭션 정합성 유지**: 기존과 동일하게 `TransactionSynchronizationManager`에 언락 콜백을 등록하여 트랜잭션 커밋 이후에만 락을 해제한다. 트랜잭션이 없는 경우에는 `finally` 블록에서 직접 해제해 데드락을 막는다.
-- **락 → 트랜잭션 순서 보장**: `CouponService.issueCoupon`은 이제 락을 획득한 뒤 `TransactionTemplate`으로 트랜잭션 블록을 실행한다. 클래스 레벨 `@Transactional`을 제거하고, 쓰기 로직은 전부 `transactionTemplate.execute { ... }` 안으로 이동시켜 락이 항상 트랜잭션을 감싼다.
+- **AOP 기반 분산 락**: 공통 애노테이션 `@DistributedLock`(`src/main/kotlin/io/joopang/common/lock/DistributedLock.kt`)과 `DistributedLockAspect`(`src/main/kotlin/io/joopang/common/lock/DistributedLockAspect.kt`)를 만들었다. SpEL로 키를 계산하고 Redisson `RLock`을 획득/해제하는 로직을 Aspect 한 곳에 모아 코드 중복을 제거했다.
+- **서비스 직접 적용**: 더 이상 별도 `CouponLockManager` 빈이 존재하지 않는다. `CouponService.issueCoupon` 자체에 `@DistributedLock(prefix = "lock:coupon-template:", key = "#command.couponTemplateId")`를 선언해 락 파라미터를 한 곳에서 관리하고, 락 실패 메시지도 서비스 코드에서 바로 정의한다.
+- **락 → 트랜잭션 순서 보장**: `@Order(Ordered.HIGHEST_PRECEDENCE)`로 설정된 AOP가 트랜잭션 프록시보다 먼저 락을 잡고, `CouponService.issueCoupon`의 `@Transactional`이 그다음 실행되어 “락 획득 → 트랜잭션 시작 → 커밋/롤백 → 락 해제” 순서를 일관되게 유지한다.
 - **테스트 인프라 정비**: 테스트 실행 시에도 분산 락이 Redis 의존성을 요구하므로, `IntegrationTestSupport`(`src/test/kotlin/io/joopang/support/IntegrationTestSupport.kt`)가 기존 MySQL Testcontainer와 함께 `redis:7.2` 컨테이너를 띄우고 `DynamicPropertySource`로 호스트/포트를 주입하도록 확장했다. 덕분에 모든 `@SpringBootTest`가 동일한 Redis 환경을 사용한다.
 
 ## 테스트
@@ -36,4 +36,4 @@
 2. Redis 장애/느린 커맨드 감지를 위한 메트릭(연결 끊김 수, 락 획득 실패 비율)을 Prometheus에 노출하고, 알람을 걸어 중단 사태를 조기 인지한다.
 3. 일부 쿠폰을 Redis 재고 카운터(`DECR`) 기반으로 처리해 분산 락 의존도를 줄이는 전략을 검토하고, 락과 원자 연산의 혼합 운용 가이드라인을 작성한다.
 
-- 적용 코드: `build.gradle.kts`, `gradle/libs.versions.toml`, `src/main/kotlin/io/joopang/config/RedissonConfig.kt`, `src/main/kotlin/io/joopang/services/coupon/infrastructure/CouponLockManagerImpl.kt`, `src/main/kotlin/io/joopang/services/coupon/application/CouponService.kt`, `src/test/kotlin/io/joopang/support/IntegrationTestSupport.kt`.
+- 적용 코드: `build.gradle.kts`, `gradle/libs.versions.toml`, `src/main/kotlin/io/joopang/config/RedissonConfig.kt`, `src/main/kotlin/io/joopang/common/lock/DistributedLock.kt`, `src/main/kotlin/io/joopang/common/lock/DistributedLockAspect.kt`, `src/main/kotlin/io/joopang/services/coupon/application/CouponService.kt`, `src/test/kotlin/io/joopang/support/IntegrationTestSupport.kt`.
