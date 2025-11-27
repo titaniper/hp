@@ -17,3 +17,10 @@ joopang:
   cache:
     popular-products:
       ttl-seconds: ${POPULAR_PRODUCTS_CACHE_TTL_SECONDS:60}
+  jobs:
+    popular-products-cache-warmup:
+      enabled: true
+      refresh-interval-ms: 55000
+      targets:
+        - days: 3
+          limit: 5
