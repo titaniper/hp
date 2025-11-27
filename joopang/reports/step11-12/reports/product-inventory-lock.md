@@ -10,6 +10,7 @@
 
 - **AOP 기반 락 공통화**: 쿠폰 발급에서 사용한 공통 애노테이션 `@DistributedLock`과 Aspect(`src/main/kotlin/io/joopang/common/lock`)를 재고 로직에도 재사용했다. SpEL 키(`lock:product:<productId>`)만 바꿔주면 동일한 Redisson 락을 활용할 수 있다.
 - **서비스 직접 적용**: `ProductLockManager`/`ProductLockManagerImpl`을 완전히 제거하고, `OrderService.reserveStockForProduct`에 `@DistributedLock(prefix = "lock:product:", key = "#productId")`를 직접 선언해 SKU별 락을 잡는다. 락 설정과 실패 메시지를 서비스에 붙여 도메인별 정책을 더 쉽게 조정할 수 있다.
+- **락 키 설계**: `lock:product:<상품ID>`로 키를 구성했다. 주문 시 재고 차감은 상품 단위로만 상호배타성이 필요하므로 상품 ID를 키로 사용하면 공유 재고(SKU) 전체를 보호하면서 서로 다른 상품은 병렬로 처리할 수 있다. 접두사로 도메인을 구분해 쿠폰 등 다른 락과 키 충돌을 방지했다.
 - **OrderService 적용**: `OrderService.reserveStock`이 상품을 그룹핑한 뒤 `reserveStockForProduct`(락이 선언된 메서드)를 호출하도록 분리했다. 다중 상품 주문 시에도 SKU 순서대로 락을 순차 취득하므로 데드락을 예방하면서 개별 재고 차감이 보호된다.
 - **의존성/빌드 구성**: AOP 적용을 위해 `spring-boot-starter-aop`를 추가했고(`build.gradle.kts`), Redisson 설정(`RedissonConfig`) 및 Redis Testcontainer 인프라는 쿠폰 락 때 도입한 구성을 그대로 활용했다.
 

@@ -12,6 +12,7 @@
 - **RedissonClient 구성**: `RedissonConfig`(`src/main/kotlin/io/joopang/config/RedissonConfig.kt`)에서 Spring `RedisProperties`를 주입받아 단일 서버 모드 구성을 생성하고, 비밀번호/DB 인덱스를 프로퍼티 기준으로 오버라이드하도록 했다. Bean destroy 시점에는 `shutdown()`을 호출해 커넥션을 정리한다.
 - **AOP 기반 분산 락**: 공통 애노테이션 `@DistributedLock`(`src/main/kotlin/io/joopang/common/lock/DistributedLock.kt`)과 `DistributedLockAspect`(`src/main/kotlin/io/joopang/common/lock/DistributedLockAspect.kt`)를 만들었다. SpEL로 키를 계산하고 Redisson `RLock`을 획득/해제하는 로직을 Aspect 한 곳에 모아 코드 중복을 제거했다.
 - **서비스 직접 적용**: 더 이상 별도 `CouponLockManager` 빈이 존재하지 않는다. `CouponService.issueCoupon` 자체에 `@DistributedLock(prefix = "lock:coupon-template:", key = "#command.couponTemplateId")`를 선언해 락 파라미터를 한 곳에서 관리하고, 락 실패 메시지도 서비스 코드에서 바로 정의한다.
+- **락 키 설계**: 키는 `lock:coupon-template:<템플릿ID>` 형태로 구성했다. 템플릿 ID가 발급 수량·한도 계산의 단위이므로 동일 템플릿에 대한 요청만 직렬화하면 충분하고, 다른 템플릿의 발급은 서로 영향 없이 병렬로 처리할 수 있다. 네임스페이스 접두사를 붙여 다른 도메인의 락과 충돌하지 않도록 했다.
 - **락 → 트랜잭션 순서 보장**: `@Order(Ordered.HIGHEST_PRECEDENCE)`로 설정된 AOP가 트랜잭션 프록시보다 먼저 락을 잡고, `CouponService.issueCoupon`의 `@Transactional`이 그다음 실행되어 “락 획득 → 트랜잭션 시작 → 커밋/롤백 → 락 해제” 순서를 일관되게 유지한다.
 - **테스트 인프라 정비**: 테스트 실행 시에도 분산 락이 Redis 의존성을 요구하므로, `IntegrationTestSupport`(`src/test/kotlin/io/joopang/support/IntegrationTestSupport.kt`)가 기존 MySQL Testcontainer와 함께 `redis:7.2` 컨테이너를 띄우고 `DynamicPropertySource`로 호스트/포트를 주입하도록 확장했다. 덕분에 모든 `@SpringBootTest`가 동일한 Redis 환경을 사용한다.
 

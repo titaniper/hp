@@ -17,6 +17,7 @@ import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
+import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -134,8 +135,12 @@ class ProductService(
     @Cacheable(
         cacheNames = [CacheNames.POPULAR_PRODUCTS],
         key = "#days + ':' + #limit",
-        unless = "#result.products.isEmpty()",
         sync = true,
+    )
+    @CacheEvict(
+        cacheNames = [CacheNames.POPULAR_PRODUCTS],
+        key = "#days + ':' + #limit",
+        condition = "#result.products.isEmpty()",
     )
     fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
