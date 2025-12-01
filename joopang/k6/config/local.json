@@ -1,18 +1,32 @@
 {
-  "baseUrl": "http://localhost:8080",
+  "baseUrl": "http://localhost:8083",
+  "timeout": "60s",
   "headers": {
-    "accept-language": "ko-KR",
-    "x-market": "KR"
+    "Content-Type": "application/json",
+    "charset": "UTF-8",
+    "accept": "application/json",
+    "X-Secret-Key": "6BEQMfIRywavqv6tQGJ0H1nMDNW1mzTh"
   },
   "defaults": {
     "thinkTime": 1,
     "productId": "P001",
     "cartSession": "sess-local",
-    "rushCouponTemplateId": 900,
+    "rushCouponTemplateId": 700,
     "rushProductId": 1000,
     "rushProductItemId": 1500,
     "rushUserStart": 1000,
-    "rushUserCount": 2000
+    "rushUserCount": 2000,
+    "couponIssueTemplateId": 700,
+    "couponIssueUserStart": 100,
+    "couponIssueUserCount": 1,
+    "purchaseProductId": 1000,
+    "purchaseProductItemId": 500,
+    "purchaseQuantity": 1,
+    "purchaseUserStart": 1000,
+    "purchaseUserCount": 2000,
+    "popularProductsDays": 7,
+    "popularProductsLimit": 20,
+    "popularProductsCacheBypassPercent": 5
   },
   "thresholds": {
     "http_req_duration": ["p(95)<350"],
@@ -34,6 +48,30 @@
     "rush": {
       "vus": 2000,
       "maxDuration": "5m"
+    },
+    "couponIssue": {
+      "stages": [
+        { "duration": "30s", "target": 50 },
+        { "duration": "2m", "target": 150 },
+        { "duration": "30s", "target": 0 }
+      ],
+      "gracefulStop": "30s"
+    },
+    "purchaseStock": {
+      "stages": [
+        { "duration": "1m", "target": 30 },
+        { "duration": "3m", "target": 80 },
+        { "duration": "1m", "target": 0 }
+      ],
+      "gracefulStop": "45s"
+    },
+    "popularProducts": {
+      "stages": [
+        { "duration": "30s", "target": 30 },
+        { "duration": "1m", "target": 80 },
+        { "duration": "30s", "target": 0 }
+      ],
+      "gracefulStop": "20s"
     }
   }
 }

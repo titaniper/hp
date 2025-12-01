@@ -1,5 +1,7 @@
 package io.joopang.services.product.application
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo
+import io.joopang.common.cache.CacheNames
 import io.joopang.services.common.application.CacheService
 import io.joopang.services.common.domain.Money
 import io.joopang.services.common.domain.Percentage
@@ -16,6 +18,8 @@ import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
 import io.joopang.services.product.infrastructure.ProductRepository
+import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.CacheManager
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -30,6 +34,7 @@ class ProductService(
 
     // TODO: cachable 로 개선
     private val cacheService: CacheService,
+    private val cacheManager: CacheManager,
 ) {
 
     fun getProducts(
@@ -129,6 +134,11 @@ class ProductService(
     }
 
     @TrackPerformance("getTopProducts")
+    @Cacheable(
+        cacheNames = [CacheNames.POPULAR_PRODUCTS],
+        key = "#days + ':' + #limit",
+        sync = true,
+    )
     fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
@@ -136,6 +146,7 @@ class ProductService(
         val cutoff = Instant.now().minus(days, ChronoUnit.DAYS)
         val rows = productRepository.findPopularProductsSince(cutoff, limit)
         if (rows.isEmpty()) {
+            evictPopularProducts(days, limit)
             return TopProductsOutput(period = "${days}days", products = emptyList())
         }
 
@@ -146,18 +157,22 @@ class ProductService(
         val ranked = rows.mapIndexed { index, row ->
             val aggregate = aggregatesById[row.productId]
                 ?: throw ProductNotFoundException(row.productId.toString())
-            TopProductOutput(
+            TopProductsOutput.TopProductOutput(
                 rank = index + 1,
-                product = aggregate.toOutput(),
+                product = aggregate.toOutput().toSummary(),
                 salesCount = row.salesCount,
-                revenue = row.revenue,
+                revenue = row.revenue.toBigDecimal(),
             )
         }
 
-        return TopProductsOutput(
+        val output = TopProductsOutput(
             period = "${days}days",
             products = ranked,
         )
+        if (output.products.isEmpty()) {
+            evictPopularProducts(days, limit)
+        }
+        return output
     }
 
     fun checkStock(productId: Long, quantity: Long): StockCheckOutput {
@@ -189,6 +204,11 @@ class ProductService(
                 cacheService.evict(buildProductsCacheKey(categoryId, sort))
             }
         }
+    }
+
+    private fun evictPopularProducts(days: Long, limit: Int) {
+        // sync=true를 유지하려면 @Cacheable과 다른 캐시 애노테이션을 함께 쓸 수 없어 직접 CacheManager로 무효화한다.
+        cacheManager.getCache(CacheNames.POPULAR_PRODUCTS)?.evict("$days:$limit")
     }
 
     private fun productComparator(sort: ProductSort): Comparator<ProductWithItems> =
@@ -313,17 +333,48 @@ class ProductService(
         )
     }
 
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
     data class TopProductsOutput(
         val period: String,
         val products: List<TopProductOutput>,
-    )
+    ) {
+        @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+        data class TopProductOutput(
+            val rank: Int,
+            val product: ProductSummary,
+            val salesCount: Long,
+            val revenue: BigDecimal,
+        )
 
-    data class TopProductOutput(
-        val rank: Int,
-        val product: Output,
-        val salesCount: Long,
-        val revenue: Money,
-    )
+        @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+        data class ProductSummary(
+            val id: Long,
+            val name: String,
+            val code: String,
+            val description: String?,
+            val content: String?,
+            val status: ProductStatus,
+            val sellerId: Long,
+            val categoryId: Long,
+            val price: BigDecimal,
+            val discountRate: BigDecimal?,
+            val version: Int,
+            val viewCount: Int,
+            val salesCount: Int,
+            val items: List<ProductItemSummary>,
+        )
+
+        @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
+        data class ProductItemSummary(
+            val id: Long,
+            val name: String,
+            val unitPrice: BigDecimal,
+            val description: String?,
+            val stock: BigDecimal,
+            val status: ProductItemStatus,
+            val code: String,
+        )
+    }
 
     data class StockCheckOutput(
         val available: Boolean,
@@ -334,4 +385,33 @@ class ProductService(
     companion object {
         private const val DEFAULT_CACHE_TTL_SECONDS = 60L
     }
+
+    private fun Output.toSummary(): TopProductsOutput.ProductSummary =
+        TopProductsOutput.ProductSummary(
+            id = id,
+            name = name,
+            code = code,
+            description = description,
+            content = content,
+            status = status,
+            sellerId = sellerId,
+            categoryId = categoryId,
+            price = price.toBigDecimal(),
+            discountRate = discountRate,
+            version = version,
+            viewCount = viewCount,
+            salesCount = salesCount,
+            items = items.map { it.toSummary() },
+        )
+
+    private fun Output.Item.toSummary(): TopProductsOutput.ProductItemSummary =
+        TopProductsOutput.ProductItemSummary(
+            id = id,
+            name = name,
+            unitPrice = unitPrice.toBigDecimal(),
+            description = description,
+            stock = stock.toBigDecimal(),
+            status = status,
+            code = code,
+        )
 }

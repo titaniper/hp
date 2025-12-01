@@ -199,6 +199,38 @@ class ProductController(
                 .fold(StockQuantity.ZERO) { acc, stock -> acc + stock }
                 .toBigDecimal(),
         )
+
+    private fun ProductService.TopProductsOutput.ProductSummary.toResponse(): ProductResponse =
+        ProductResponse(
+            id = id,
+            name = name,
+            code = code,
+            description = description,
+            content = content,
+            status = status.name,
+            sellerId = sellerId,
+            categoryId = categoryId,
+            price = price,
+            discountRate = discountRate,
+            version = version,
+            viewCount = viewCount,
+            salesCount = salesCount,
+            totalStock = items
+                .map { it.stock }
+                .fold(BigDecimal.ZERO) { acc, stock -> acc + stock },
+            items = items.map { it.toResponse() },
+        )
+
+    private fun ProductService.TopProductsOutput.ProductItemSummary.toResponse(): ProductItemResponse =
+        ProductItemResponse(
+            id = id,
+            name = name,
+            unitPrice = unitPrice,
+            description = description,
+            stock = stock,
+            status = status.name,
+            code = code,
+        )
 }
 
 data class ProductResponse(

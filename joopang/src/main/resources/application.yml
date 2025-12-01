@@ -3,8 +3,27 @@ spring:
     name: joopang
   profiles:
     default: local
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: ${SERVER_PORT:8083}
 
 decorator:
   datasource:
     p6spy:
       enable-logging: true
+
+joopang:
+  cache:
+    popular-products:
+      ttl-seconds: ${POPULAR_PRODUCTS_CACHE_TTL_SECONDS:1000}
+  jobs:
+    popular-products-cache-warmup:
+      enabled: true
+      refresh-interval-ms: 55000
+      targets:
+        - days: 3
+          limit: 5
