@@ -11,6 +11,9 @@
 .gradle
 .gradle-home
 
+# spec.md
+# task.md
+
 bin
 
 # 빌드 결과물 디렉토리

@@ -1,0 +1,71 @@
+# Redis 기반 상품 랭킹 시스템 리포트
+
+1. **어떤 리포트인지**
+   - 주문/뷰 메트릭을 Redis Sorted Set에 수집해 실시간 상품 랭킹 API를 제공하는 설계 및 구현 방향 보고서다.
+
+2. **배경**
+   - `ProductService.getTopProducts`는 주문 테이블을 조인한 네이티브 쿼리로 데이터를 만들고 Spring Cache에 Redis를 사용해 TTL 캐시만 적용한다 (`src/main/kotlin/io/joopang/services/product/application/ProductService.kt:136-211`, `src/main/kotlin/io/joopang/services/product/infrastructure/ProductRepository.kt:120-152`).
+   - 매 호차 집계 시 DB 부하가 발생하고, TTL 만료 시마다 동일 쿼리가 반복된다.
+
+3. **목적**
+   - Redis Sorted Set 기반으로 주문 이벤트를 스트리밍 카운팅하여 **실시간 랭킹, 구간별 랭킹, 사용자 맞춤 랭킹**을 저비용으로 제공한다.
+   - 기존 `OrderService`의 결제 완료 시점 이벤트 훅(`TransactionSynchronization`)을 이용해 랭킹 메트릭을 작성한다 (`src/main/kotlin/io/joopang/services/order/application/OrderService.kt:118-169`).
+
+4. **문제해결**
+   - **메트릭 수집 파이프라인**
+     1. `OrderService.processPayment`가 성공하면 `OrderDataPayload`를 생성해 현재는 in-memory 큐에 넣는다.
+     2. 동일 지점에서 Redis 파이프라인을 호출하여 `ZINCRBY product:rank:sales:24h {score} {productId}`와 같이 증가시킨다. score는 `quantity` 또는 `quantity * unitPrice`로 선택.
+     3. 주문 취소/환불 대비를 위해 보상 트랜잭션을 `ZINCRBY` 음수 값으로 발행.
+     4. 조회수 기반 랭킹은 API 게이트웨이에서 `PFADD`/`ZINCRBY product:rank:views:1h`로 누적.
+   - **데이터 구조**
+     | 키 | 타입 | 설명 |
+     | --- | --- | --- |
+     | `product:rank:sales:1h` | Sorted Set | 최근 1시간 판매량 가중치. `120m` TTL.
+     | `product:rank:sales:24h` | Sorted Set | 최근 하루 누적. TTL=2일.
+     | `product:rank:revenue:24h` | Sorted Set | 매출 금액 우선 순위.
+     | `product:metrics:{date}` | Hash | 배치 flush용 일별 스냅샷.
+   - **API/서비스 변경**
+     - `ProductService.getTopProducts`는 Redis Sorted Set에서 `ZREVRANGE WITHSCORES`로 후보를 읽고, 부족 시 DB fallback.
+     - `ProductRepository.findPopularProductsSince`는 배치 리포팅·백필용으로 유지하되, 실시간 API는 Redis 데이터로 대체.
+     - 복수 지표를 결합한 메트릭은 Lua에서 `score = sales * 0.7 + revenue * 0.3`처럼 계산하거나, `ZINTERSTORE`로 가중 합친 랭킹을 생성.
+   - **파이프라인/트랜잭션**
+     - 주문 한 건에 대한 Redis 명령은 `MULTI/EXEC` 또는 pipeline으로 묶어 네트워크 RTT를 1회로 줄인다.
+     - 예시 코드:
+       ```kotlin
+       val commands = mapOf(
+           "product:rank:sales:1h" to quantity,
+           "product:rank:sales:24h" to quantity,
+           "product:rank:revenue:24h" to subtotal.toBigDecimal().toDouble()
+       )
+       redisTemplate.executePipelined { connection ->
+           commands.forEach { (key, incr) ->
+               connection.zIncrBy(serialize(key), serialize(productId), incr)
+               connection.expire(serialize(key), ttlSeconds)
+           }
+       }
+       ```
+     - TTL 기반 슬라이딩 윈도우: 정기 스케줄러가 `ZREMRANGEBYSCORE`로 만료 이전 데이터를 제거하거나, 키 자체 TTL로 대체.
+   - **배치/영속화**
+     - `PopularProductsCacheWarmupJob`가 Redis 랭킹을 호출하도록 변경하면 캐시 워밍이 즉각적이다.
+     - 자정마다 `product:metrics:{date}` Hash를 MySQL `product_metrics_daily`로 flush하여 영구 저장 (`docs/specs/top/REDIS.md` 플로우 참조).
+
+5. **테스트**
+   - **슬라이딩 윈도우 검증**: Testcontainers Redis로 TTL/만료 후 랭킹이 자연스럽게 변하는지 확인.
+   - **정합성 테스트**: DB 주문 데이터와 Redis 랭킹을 비교하는 배치 테스트. 예) 특정 기간 동안 `ZCOUNT` vs `SUM(quantity)`.
+   - **부하 테스트**: `k6/scenarios/popular-products.js`를 변형하여 매 초 5k `ZINCRBY`를 실행하고 응답 지연을 측정.
+   - **API 회귀 테스트**: Redis 비가용 상태에서 기존 DB 쿼리 fallback이 정상 동작하는지 `@SpringBootTest`로 검증.
+
+6. **한계점**
+   - Redis TTL 기반 슬라이딩 윈도우는 정확한 시간 경계 제어가 어렵다 → 필요 시 Sorted Set score에 이벤트 타임스탬프를 넣고 `ZREMRANGEBYSCORE`로 컷오프.
+   - 다수 지표 결합 시 `ZINTERSTORE`가 CPU를 많이 사용하므로 주기적 pre-compute가 필요하다.
+   - 단일 Redis 인스턴스에 의존하면 랭킹 전체가 사라질 위험이 있으므로 레플리카 + 스냅샷/스트림 백업이 필수.
+
+7. **결론**
+   - Redis Sorted Set을 1차 데이터 저장소로 사용하면 실시간 랭킹을 RDB 조인 없이 제공할 수 있고, 기존 캐시 계층(Spring Cache)과도 잘 맞물린다.
+   - `OrderService`의 이벤트 지점과 `PopularProductsCacheWarmupJob`을 활용하여 최소 침습으로 도입 가능하다.
+
+8. **NEXT**
+   1. `OrderDataTransmissionService`에 Redis Writer를 추가해 결제 완료 데이터를 Sorted Set에 적재.
+   2. 랭킹 API가 Redis → DB fallback 경로를 선택하도록 `ProductService` 리팩터링.
+   3. 배치 작업으로 Hash snapshot을 RDB에 flush하고, 운영 모니터링을 붙인다.
+   4. 페일오버 전략(AOF, replica, keyspace event 알람)을 포함한 운영 runbook을 작성한다.
