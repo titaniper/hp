@@ -1,6 +1,8 @@
 package io.joopang.services.coupon.presentation
 
 import io.joopang.services.coupon.application.CouponService
+import io.joopang.services.coupon.application.issue.CouponIssueFacade
+import io.joopang.services.coupon.application.issue.CouponIssueQueueResult
 import io.joopang.services.coupon.domain.CouponStatus
 import io.joopang.services.coupon.domain.CouponType
 import org.springframework.web.bind.annotation.GetMapping
@@ -16,21 +18,26 @@ import java.time.Instant
 @RequestMapping("/api")
 class CouponController(
     private val couponService: CouponService,
+    private val couponIssueFacade: CouponIssueFacade,
 ) {
 
     @PostMapping("/coupons/{templateId}/issue")
+    /**
+     * Presentation 계층은 HTTP 파라미터만 명세하고 비즈니스 플로우는 CouponIssueFacade에 위임한다.
+     */
     fun issueCoupon(
         @PathVariable("templateId") couponTemplateId: Long,
         @RequestBody request: CouponIssueRequest,
-    ): CouponIssueResponse =
-        couponService
-            .issueCoupon(
-                CouponService.IssueCouponCommand(
-                    couponTemplateId = couponTemplateId,
-                    userId = request.userId,
-                ),
-            )
-            .toResponse()
+    ): CouponIssueResponse {
+        val command = CouponService.IssueCouponCommand(
+            couponTemplateId = couponTemplateId,
+            userId = request.userId,
+        )
+        return when (val result = couponIssueFacade.requestIssue(command)) {
+            is CouponIssueFacade.Result.Sync -> result.output.toResponse()
+            is CouponIssueFacade.Result.Async -> result.queueResult.toResponse()
+        }
+    }
 
     @GetMapping("/users/{userId}/coupons")
     fun getUserCoupons(
@@ -50,6 +57,16 @@ class CouponController(
             issuedAt = coupon.issuedAt,
             expiredAt = coupon.expiredAt,
             remainingQuantity = remainingQuantity,
+            queueStatus = CouponIssueQueueStatus.COMPLETED,
+        )
+
+    private fun CouponIssueQueueResult.toResponse(): CouponIssueResponse =
+        CouponIssueResponse(
+            couponTemplateId = couponTemplateId,
+            requestId = requestId,
+            queueRank = queueRank,
+            estimatedWaitMillis = estimatedWaitMillis,
+            queueStatus = CouponIssueQueueStatus.QUEUED,
         )
 
     private fun CouponService.Output.toResponse(): UserCouponResponse =
@@ -71,15 +88,24 @@ data class CouponIssueRequest(
 )
 
 data class CouponIssueResponse(
-    val userCouponId: Long,
-    val couponTemplateId: Long?,
-    val type: CouponType,
-    val value: BigDecimal,
-    val status: CouponStatus,
-    val issuedAt: Instant,
-    val expiredAt: Instant?,
-    val remainingQuantity: Int,
+    val userCouponId: Long? = null,
+    val couponTemplateId: Long? = null,
+    val type: CouponType? = null,
+    val value: BigDecimal? = null,
+    val status: CouponStatus? = null,
+    val issuedAt: Instant? = null,
+    val expiredAt: Instant? = null,
+    val remainingQuantity: Int? = null,
+    val requestId: String? = null,
+    val queueRank: Long? = null,
+    val estimatedWaitMillis: Long? = null,
+    val queueStatus: CouponIssueQueueStatus,
 )
+
+enum class CouponIssueQueueStatus {
+    QUEUED,
+    COMPLETED,
+}
 
 data class UserCouponResponse(
     val couponId: Long,

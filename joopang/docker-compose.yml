@@ -1,42 +1,153 @@
 version: "3.9"
 
 services:
+  # ---------------------------------------------------------------------------
+  # MySQL: 메인 관계형 데이터베이스
+  # ---------------------------------------------------------------------------
   mysql:
     image: mysql:8.0.36
     container_name: joopang-mysql
-    restart: unless-stopped
+    restart: unless-stopped # 컨테이너가 중지되면 자동으로 재시작 (명시적 중지 제외)
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: joopang
       MYSQL_USER: joopang
       MYSQL_PASSWORD: joopang
-      TZ: Asia/Seoul
+      TZ: Asia/Seoul # 타임존 설정 (한국 시간)
     ports:
-      - "3311:3306"
+      - "3311:3306" # 호스트의 3311 포트를 컨테이너의 3306 포트로 연결
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+      - mysql-data:/var/lib/mysql # 데이터 영속성을 위한 볼륨 마운트
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d # 초기화 스크립트 마운트
     command:
-      - --default-authentication-plugin=mysql_native_password
-      - --character-set-server=utf8mb4
+      # MySQL 설정 옵션들
+      - --default-authentication-plugin=mysql_native_password # 구버전 클라이언트 호환성
+      - --character-set-server=utf8mb4 # 이모지 지원을 위한 문자셋
       - --collation-server=utf8mb4_unicode_ci
+      - --slow_query_log=1 # 슬로우 쿼리 로그 활성화
+      - --long_query_time=1 # 1초 이상 걸리는 쿼리 기록
+      - --log_output=TABLE # 로그를 파일이 아닌 테이블에 저장
+      - --performance-schema=ON # 성능 모니터링 스키마 활성화
+      - --performance-schema-consumer-events-statements-history=ON
+      - --performance-schema-consumer-events-statements-history-long=ON
 
+  # ---------------------------------------------------------------------------
+  # Redis: 캐시 및 세션 저장소
+  # ---------------------------------------------------------------------------
   redis:
-    image: redis:7.2-alpine
+    image: redis:7.2-alpine # 가벼운 Alpine 리눅스 기반 이미지
     container_name: joopang-redis
     restart: unless-stopped
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"] # 커스텀 설정 파일로 실행
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
-      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    healthcheck:
+      - redis-data:/data # 데이터 영속성
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro # 설정 파일 읽기 전용 마운트
+    healthcheck: # 컨테이너 상태 체크
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Loki: 로그 집계 시스템 (Prometheus의 로그 버전)
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:2.9.5
+    container_name: joopang-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - loki-data:/loki
+      - ./docker/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+
+  # ---------------------------------------------------------------------------
+  # Promtail: 로그 수집기 (로그를 읽어서 Loki로 전송)
+  # ---------------------------------------------------------------------------
+  promtail:
+    image: grafana/promtail:2.9.5
+    container_name: joopang-promtail
+    restart: unless-stopped
+    depends_on:
+      - loki # Loki가 먼저 실행되어야 함
+    volumes:
+      - promtail-positions:/tmp # 로그 읽은 위치(offset) 저장
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro # 도커 컨테이너 로그 파일 접근
+      - /var/run/docker.sock:/var/run/docker.sock # 도커 데몬 통신
+    command: -config.file=/etc/promtail/config.yml
+
+  # ---------------------------------------------------------------------------
+  # InfluxDB: 시계열 데이터베이스 (메트릭 저장)
+  # ---------------------------------------------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: joopang-influxdb
+    restart: unless-stopped
+    environment:
+      # 초기 설정 자동화
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin123
+      DOCKER_INFLUXDB_INIT_ORG: joopang
+      DOCKER_INFLUXDB_INIT_BUCKET: telegraf
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: joopang-influx-token
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+
+  # ---------------------------------------------------------------------------
+  # Telegraf: 메트릭 수집 에이전트 (MySQL, System 등 -> InfluxDB)
+  # ---------------------------------------------------------------------------
+  telegraf:
+    image: telegraf:1.28
+    container_name: joopang-telegraf
+    user: "0:0" # Docker 소켓 접근을 위해 root 권한으로 실행
+    privileged: true # 소켓/네트워크 메트릭을 모두 읽을 수 있도록 권한 부여
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+      - mysql
+    environment:
+      INFLUX_TOKEN: joopang-influx-token
+      INFLUX_ORG: joopang
+      INFLUX_BUCKET: telegraf
+      TELEGRAF_MYSQL_DSN: telegraf:telegrafpass@tcp(mysql:3306)/?tls=false # MySQL 연결 정보
+    volumes:
+      - ./docker/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock # RW로 마운트해야 Docker API 호출 가능
+
+  # ---------------------------------------------------------------------------
+  # Grafana: 데이터 시각화 대시보드
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: joopang-grafana
+    restart: unless-stopped
+    depends_on:
+      - loki
+      - influxdb
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: grafana123
+      GF_USERS_ALLOW_SIGN_UP: "false" # 회원가입 비활성화
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro # 데이터소스/대시보드 자동 프로비저닝
+
+# -----------------------------------------------------------------------------
+# Volumes: 컨테이너가 삭제되어도 데이터가 유지되도록 하는 저장소 정의
+# -----------------------------------------------------------------------------
 volumes:
   mysql-data:
   redis-data:
+  loki-data:
+  promtail-positions:
+  influxdb-data:
+  grafana-data:

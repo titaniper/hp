@@ -68,7 +68,8 @@ class CouponServiceIntegrationTest @Autowired constructor(
                     userRepository.save(
                         baseUser.copy(
                             id = null,
-                            email = Email("customer@joopang.com"),
+                            // ensure each thread inserts a distinct email to satisfy unique constraint
+                            email = Email("concurrent$index@joopang.com"),
                         ),
                     )
                 }

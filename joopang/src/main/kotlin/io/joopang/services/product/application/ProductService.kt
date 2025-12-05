@@ -17,6 +17,7 @@ import io.joopang.services.product.domain.ProductSort
 import io.joopang.services.product.domain.ProductStatus
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
+import io.joopang.services.product.infrastructure.ProductRankingRepository
 import io.joopang.services.product.infrastructure.ProductRepository
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.CacheManager
@@ -31,6 +32,7 @@ import java.time.temporal.ChronoUnit
 @Transactional(readOnly = true)
 class ProductService(
     private val productRepository: ProductRepository,
+    private val productRankingRepository: ProductRankingRepository,
 
     // TODO: cachable 로 개선
     private val cacheService: CacheService,
@@ -134,15 +136,39 @@ class ProductService(
     }
 
     @TrackPerformance("getTopProducts")
-    @Cacheable(
-        cacheNames = [CacheNames.POPULAR_PRODUCTS],
-        key = "#days + ':' + #limit",
-        sync = true,
-    )
     fun getTopProducts(days: Long = 3, limit: Int = 5): TopProductsOutput {
         require(days > 0) { "Days must be greater than zero" }
         require(limit > 0) { "Limit must be greater than zero" }
 
+        // 1. Redis 조회
+        val topProductsWithScores = productRankingRepository.getTopProductIdsWithScores(days, limit)
+
+        if (topProductsWithScores.isNotEmpty()) {
+            val productIds = topProductsWithScores.map { it.first }
+            val aggregatesById = productRepository
+                .findProductsByIds(productIds)
+                .associateBy { it.product.id }
+
+            val ranked = topProductsWithScores.mapIndexedNotNull { index, (productId, score) ->
+                aggregatesById[productId]?.let { aggregate ->
+                    TopProductsOutput.TopProductOutput(
+                        rank = index + 1,
+                        product = aggregate.toOutput().toSummary(),
+                        salesCount = score.toLong(),
+                        revenue = BigDecimal.ZERO, // Revenue 정보는 현재 구조상 별도 조회가 필요함
+                    )
+                }
+            }
+
+            if (ranked.isNotEmpty()) {
+                return TopProductsOutput(
+                    period = "${days}days",
+                    products = ranked,
+                )
+            }
+        }
+
+        // 2. DB Fallback
         val cutoff = Instant.now().minus(days, ChronoUnit.DAYS)
         val rows = productRepository.findPopularProductsSince(cutoff, limit)
         if (rows.isEmpty()) {

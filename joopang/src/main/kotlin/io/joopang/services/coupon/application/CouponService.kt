@@ -31,7 +31,17 @@ class CouponService(
         failureMessage = "쿠폰 발급 요청이 많습니다. 잠시 후 다시 시도해주세요.",
     )
     @Transactional
-    fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput {
+    /**
+     * Domain 서비스는 락/트랜잭션 경계 안에서 발급 규칙을 검증하고 실제 쿠폰 엔티티를 저장한다.
+     */
+    fun issueCoupon(command: IssueCouponCommand): IssueCouponOutput =
+        issueCouponInternal(command)
+
+    @Transactional
+    fun issueCouponWithoutLock(command: IssueCouponCommand): IssueCouponOutput =
+        issueCouponInternal(command)
+
+    private fun issueCouponInternal(command: IssueCouponCommand): IssueCouponOutput {
         val user = userRepository.findByIdOrNull(command.userId)
             ?: throw UserNotFoundException(command.userId.toString())
         val userId = user.requireId()
@@ -44,12 +54,6 @@ class CouponService(
         if (!template.canIssue(now)) {
             throw IllegalStateException("쿠폰이 모두 소진되었거나 발급 기간이 아닙니다")
         }
-
-//        val existingCoupon = couponRepository.findByUserIdAndCouponTemplateId(userId, templateId)
-//            ?.takeIf { it.status == CouponStatus.AVAILABLE }
-//        if (existingCoupon != null) {
-//            throw IllegalStateException("이미 발급받은 쿠폰입니다")
-//        }
 
         val userCoupons = couponRepository.findAllByUserId(userId)
         val issuedCount = userCoupons.count { it.couponTemplateId == templateId }
