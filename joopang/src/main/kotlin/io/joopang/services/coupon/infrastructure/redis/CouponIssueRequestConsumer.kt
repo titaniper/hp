@@ -6,19 +6,17 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.InitializingBean
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.connection.RedisConnectionFactory
-import org.springframework.data.redis.core.StringRedisTemplate
-import org.springframework.data.redis.core.StreamOperations
 import org.springframework.data.redis.connection.stream.Consumer
 import org.springframework.data.redis.connection.stream.MapRecord
 import org.springframework.data.redis.connection.stream.ReadOffset
-import org.springframework.data.redis.core.stream.RecordId
-import org.springframework.data.redis.core.stream.StreamMessageListenerContainer
-import org.springframework.data.redis.core.stream.StreamMessageListenerContainer.AckMode
-import org.springframework.data.redis.core.stream.StreamMessageListenerContainer.StreamMessageListenerContainerOptions
-import org.springframework.data.redis.core.stream.StreamOffset
-import org.springframework.data.redis.core.stream.StreamRecords
-import org.springframework.data.redis.stream.StreamListener
+import org.springframework.data.redis.connection.stream.RecordId
+import org.springframework.data.redis.connection.stream.StreamOffset
+import org.springframework.data.redis.connection.stream.StreamRecords
+import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.data.redis.core.StreamOperations
 import org.springframework.stereotype.Component
+import org.springframework.data.redis.stream.StreamListener
+import org.springframework.data.redis.stream.StreamMessageListenerContainer
 import java.time.Duration
 import java.util.UUID
 
@@ -43,10 +41,9 @@ class CouponIssueRequestConsumer(
     private val container: StreamMessageListenerContainer<String, MapRecord<String, String, String>> =
         StreamMessageListenerContainer.create(
             redisConnectionFactory,
-            StreamMessageListenerContainerOptions
-                .builder<String, MapRecord<String, String, String>>()
+            StreamMessageListenerContainer.StreamMessageListenerContainerOptions
+                .builder()
                 .pollTimeout(Duration.ofMillis(pollTimeoutMillis))
-                .ackMode(AckMode.MANUAL)
                 .build(),
         )
 
@@ -74,7 +71,7 @@ class CouponIssueRequestConsumer(
     private fun createGroupIfNecessary() {
         if (!redisTemplate.hasKey(requestStreamKey)) {
             streamOps.add(
-                StreamRecords.mapBacked(mapOf("bootstrap" to "1"))
+                StreamRecords.mapBacked<String, String, String>(mapOf("bootstrap" to "1"))
                     .withStreamKey(requestStreamKey),
             )
         }
@@ -144,7 +141,7 @@ class CouponIssueRequestConsumer(
             putAll(payload)
         }
         streamOps.add(
-            StreamRecords.mapBacked(body)
+            StreamRecords.mapBacked<String, String, String>(body)
                 .withStreamKey(issueStreamKey),
         )
     }

@@ -2,10 +2,10 @@ package io.joopang.services.coupon.application.issue
 
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.data.redis.connection.stream.MapRecord
+import org.springframework.data.redis.connection.stream.StreamRecords
 import org.springframework.data.redis.core.StreamOperations
 import org.springframework.data.redis.core.ZSetOperations
-import org.springframework.data.redis.core.stream.MapRecord
-import org.springframework.data.redis.core.stream.StreamRecords
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.Instant
@@ -39,14 +39,15 @@ class CouponIssueCoordinator(
 
         // StreamRecords.mapBacked(...) 는 Redis Stream에 넣을 필드-값 쌍을 만드는 헬퍼다.
         // 결국 "requestId=..., templateId=..., userId=..." 형태로 XADD에 전달된다.
-        val record = StreamRecords.mapBacked(
-            mapOf(
-                REQUEST_ID_FIELD to requestId,
-                TEMPLATE_ID_FIELD to command.couponTemplateId.toString(),
-                USER_ID_FIELD to command.userId.toString(),
-                REQUESTED_AT_FIELD to now.toString(),
-            ),
-        ).withStreamKey(requestStreamKey)
+        val record: MapRecord<String, String, String> =
+            StreamRecords.mapBacked<String, String, String>(
+                mapOf(
+                    REQUEST_ID_FIELD to requestId,
+                    TEMPLATE_ID_FIELD to command.couponTemplateId.toString(),
+                    USER_ID_FIELD to command.userId.toString(),
+                    REQUESTED_AT_FIELD to now.toString(),
+                ),
+            ).withStreamKey(requestStreamKey)
         streamOps.add(record)
 
         val queueRank = queueOps.rank(queueKey, requestId) ?: 0L
