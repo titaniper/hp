@@ -27,3 +27,19 @@ joopang:
       targets:
         - days: 3
           limit: 5
+
+coupon:
+  issue:
+    async-enabled: true
+    queue:
+      prefix: coupon:queue-position
+      ttl-seconds: 86400
+      average-processing-millis: 50
+    stream:
+      request-key: coupon:request-stream
+      issue-key: coupon:issue-stream
+      group: coupon-issue-group
+      consumer: coupon-issue-consumer
+    worker:
+      enabled: true
+      poll-timeout-millis: 500

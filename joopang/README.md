@@ -64,3 +64,46 @@
 - Kotlin 파일은 도메인 중심 패키지 구조를 따릅니다 (`io.joopang.services.*`).
 - 공통 DTO, 에러 코드, 유틸 등은 `services/common` 아래에서 공유합니다.
 - 새로운 인프라 어댑터 추가 시 `infrastructure` 계층에 구현하고, `application` 계층에서 인터페이스로 주입받는 패턴을 유지하세요.
+
+## Observability Stack
+컨테이너 로그, MySQL 성능 지표(슬로우 쿼리 포함), Docker 리소스를 한 곳에서 볼 수 있도록 Loki + InfluxDB + Grafana 기반 스택을 추가했습니다.
+
+- `docker-compose.yml`에 Loki, Promtail, InfluxDB 2.x, Telegraf, Grafana 서비스를 추가했습니다.
+- `docker/loki/loki-config.yml`, `docker/promtail/promtail-config.yml`, `docker/telegraf/telegraf.conf`에 기본 설정이 들어 있으며 Grafana 프로비저닝(`docker/grafana/provisioning/datasources`)으로 데이터소스를 자동 등록합니다.
+- `mysql` 컨테이너는 슬로우 쿼리를 TABLE 로깅으로 기록하도록 플래그가 켜져 있고(`--slow_query_log=1`, `--long_query_time=1` 등), `docker/mysql/init/01-telegraf-user.sql`에서 성능 지표 조회 전용 계정을 만듭니다.
+
+### 실행 방법
+```bash
+docker compose up -d
+```
+- 처음 실행 시 InfluxDB(포트 `8086`), Grafana(포트 `3000`), Loki(포트 `3100`)가 동시에 올라옵니다.
+- Grafana 기본 계정은 `admin` / `grafana123`입니다. 로그인 후 즉시 변경하세요.
+- InfluxDB 초기 설정 값(`admin` / `admin123`, 토큰 `joopang-influx-token`, org `joopang`, bucket `telegraf`)도 운영환경에 맞게 교체하세요.
+
+### 수집 경로
+- **컨테이너 로그**: Promtail이 `/var/lib/docker/containers/*/*.log`를 tail 하면서 Docker 메타데이터를 함께 보내고, Loki(`http://localhost:3100`)에 적재합니다. Grafana에서 Explore → Loki 선택 후 `{job=\"container-logs\"}`로 조회하세요.
+- **DB/슬로우 쿼리 메트릭**: Telegraf `mysql` input이 `performance_schema.events_statements_summary_by_digest` 데이터를 모읍니다. Grafana에서 InfluxDB 데이터소스를 선택하고 `from(bucket:\"telegraf\") |> range(start: -15m) |> filter(fn: (r) => r._measurement == \"mysql_digest\")` 등 Flux 쿼리로 상위/느린 쿼리를 볼 수 있습니다. 기본 쿼리 임계값(`--long_query_time=1`)은 `docker-compose.yml`에서 조정할 수 있습니다.
+- **컨테이너 자원 사용량**: Telegraf `docker` input이 Docker API(`/var/run/docker.sock`)를 통해 CPU/메모리/네트워크를 수집합니다. Grafana에서 InfluxDB datasource + `docker_container_cpu`, `docker_container_mem` 시계열을 이용하거나 Dashboard를 직접 import하세요.
+
+### 추가 구성 포인트
+1. **보안 변수 분리**: 실서비스에서는 `.env.monitoring` 등을 만들어 Influx 토큰, Grafana admin 비밀번호, Telegraf DSN을 환경변수로 뺀 뒤 `docker compose --env-file .env.monitoring up`으로 실행하세요.
+2. **대시보드**: Grafana Explore로 개별 시계열을 확인한 뒤 필요에 따라 공식 Loki / Docker / MySQL 대시보드를 import하면 됩니다.(예: `16120` - *Docker Monitoring*, `13679` - *Loki Logs*, `7362` - *MySQL Overview*).
+3. **추가 알람**: Grafana Unified Alerting에서 Loki/Influx 쿼리를 기반으로 슬랙/메일 알람을 걸 수 있습니다. Loki 쿼리는 LogQL, Influx는 Flux를 그대로 사용합니다.
+4. **호스트 권한**: Promtail과 Telegraf는 Docker 로그/소켓을 읽어야 하므로 맥/리눅스 모두에서 `docker` 그룹 권한이 있는 사용자로 `docker compose`를 실행해야 합니다. `telegraf` 컨테이너는 `user: "0:0"` + `privileged: true` + `/var/run/docker.sock` RW 마운트를 사용하니(`docker-compose.yml` 참고) 권한 관련 변경 이후엔 `docker compose up -d telegraf --force-recreate`로 재시작하세요. Docker Desktop 환경이라면 `/var/lib/docker/containers` 마운트는 자동으로 LinuxKit VM 경로를 바라보므로 별도 추가 작업이 필요 없습니다.
+
+  1. 소켓 권한을 완화
+
+     sudo chmod 666 /var/run/docker.sock
+     # 또는 실제 파일 경로가 심볼릭 링크이므로
+     sudo chmod 666 /Users/kang/.docker/run/docker.sock
+     Docker Desktop을 재시작하면 권한이 원래대로 돌아갈 수 있으니, 재부팅 후에도 로그를 보고 다시 조정해 줘.
+     Docker Desktop을 재시작하면 권한이 원래대로 돌아갈 수 있으니, 재부팅 후에도 로그를 보고 다시 조정해 줘.
+  2. 혹은 소켓 소유자/그룹을 변경해서 컨테이너에서 사용하는 UID/GID가 접근할 수 있도록 만들어. 예를 들어,
+
+     sudo chgrp wheel /Users/kang/.docker/run/docker.sock
+     sudo chmod 660 /Users/kang/.docker/run/docker.sock
+
+     그리고 Docker Desktop 설정에서 “File Sharing”에 /Users/kang/.docker/run이 포함되어 있는지도 확인해 줘.
+
+
+     docker compose up -d --force-recreate telegraf
