@@ -35,3 +35,6 @@ dependencyResolutionManagement {
  * 이 값은 빌드 아티팩트(JAR, WAR 등)의 이름으로 사용됩니다.
  */
 rootProject.name = "joopang"
+include("common")
+include("order-service")
+include("coupon-service")

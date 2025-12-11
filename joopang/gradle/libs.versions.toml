@@ -36,8 +36,11 @@ spring_boot_starter_web = { module = "org.springframework.boot:spring-boot-start
 spring_boot_starter_data_jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
 spring_boot_starter_data_redis = { module = "org.springframework.boot:spring-boot-starter-data-redis" }
 spring_boot_starter_actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring_boot_starter_validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
 spring_boot_configuration_processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
 spring_boot_starter_test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring_kafka = { module = "org.springframework.kafka:spring-kafka" }
+spring_kafka_test = { module = "org.springframework.kafka:spring-kafka-test" }
 
 spring_boot_testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
 test_containers_junit_jupiter = { module = "org.testcontainers:junit-jupiter" }
