@@ -9,6 +9,26 @@
 - `order-service`, `coupon-service`는 각각 독립 실행 가능한 Spring Boot 애플리케이션이며, Kafka·Redis·MySQL 설정과 리소스를 자체적으로 가집니다.
 - `gateway-service`는 Spring Cloud Gateway 기반 API 게이트웨이로 `/api/**` 트래픽을 수집해 서비스 라우팅, 공통 CORS/모니터링/기본 필터를 담당합니다.
 
+```
+Browser / 앱
+     │
+     ▼
+┌──────────────┐      ┌───────────────┐      ┌──────────────┐
+│ gateway-svc  │ ---> │ order-service │ ---> │ order MySQL  │
+│  (Spring CG) │      │ (Kafka Pub)   │      │ Redis/Cache  │
+│              │      └───────────────┘      └──────────────┘
+│   routes     │
+│              │      ┌───────────────┐      ┌──────────────┐
+│ - /api/orders│ ---> │ coupon-svc    │ ---> │ coupon MySQL │
+│ - /api/coupons│     │ (Kafka Cmd)   │      │ Redis Stream │
+└──────────────┘      └───────────────┘      └──────────────┘
+        ▲
+        │    공유 계약/값 타입
+   ┌─────────────┐
+   │ common lib  │
+   └─────────────┘
+```
+
 ## 2. 서비스 경계
 | 서비스 | 책임 | 데이터 |
 | --- | --- | --- |
@@ -17,10 +37,39 @@
 | common | Money, Quantity 등 값 타입 · 이벤트 Payload · 쿠폰 계약 타입 | 없음(라이브러리) |
 | gateway-service | 외부 클라이언트 → 서비스 트래픽 집약, 경로 기반 라우팅, 공통 CORS/모니터링 헤더 주입 | 없음(Stateless Edge) |
 
+```
+             ┌──────────────┐
+             │ gateway-svc  │
+             └──────┬───────┘
+                    │
+     ┌──────────────┼──────────────┐
+     │                              │
+┌────────────┐               ┌────────────┐
+│ order-svc  │<---common---> │ coupon-svc │
+│ (주문/결제)│               │ (쿠폰)     │
+└────────────┘               └────────────┘
+     │                              │
+┌────────────┐               ┌────────────┐
+│ order DB   │               │ coupon DB  │
+└────────────┘               └────────────┘
+```
+
 ### 쿠폰 연동
 - `order-service`는 `CouponClient`를 통해 쿠폰 서비스와 통신하며, 운영 프로파일에서는 `KafkaCouponClient`가 `coupon-command`/`coupon-command-reply` 토픽을 이용해 **요청-응답 패턴**을 구현합니다.
 - 테스트 프로파일은 `InMemoryCouponClient`로 대체해 의존성 없이 단위 테스트 가능.
 - `coupon-service` 내부에는 `CouponOrderFacade` + `CouponCommandHandler`가 존재하며, Kafka 명령을 소비/응답합니다.
+
+```
+OrderSvc                Kafka Topics                   CouponSvc
+┌─────────┐     ┌────────────────────────────┐     ┌──────────────┐
+│Kafka    │ --> │ topic: coupon-command      │ --> │CommandHandler│
+│CouponCli│     │ key=requestId              │     │ + Facade     │
+└─────────┘     └─────────────┬──────────────┘     └─────┬────────┘
+        ▲                     │                        │
+        │                     ▼                        │
+        │             topic: coupon-command-reply      │
+        └──────────── message future ◄─────────────────┘
+```
 
 ### 이벤트 전송
 - 주문 결제 완료 시 `OrderPaidEvent`를 생성하여 Kafka 주제(`order-paid`)로 발행합니다.
@@ -28,11 +77,44 @@
 - `order-service`는 `KafkaOrderEventPublisher`(운영)와 `NoopOrderEventPublisher`(테스트)를 구현합니다.
 - OpenTelemetry Collector + Zipkin 구성으로 추후 trace-id 기반 분산 추적을 수집할 수 있습니다.
 
+```
+OrderService (afterCommit)
+   │
+   ├─► Kafka topic: order-paid ──► Analytics/Ranking Consumer
+   │
+   └─► Kafka topic: coupon-command ──► CouponService
+           ▲                               │
+           └──────── coupon-command-reply ◄─┘
+```
+
 ### API Gateway 구성
 - `gateway-service`는 Spring Cloud Gateway + WebFlux로 구현되어 있으며, `spring.cloud.gateway.routes`에서 경로별 라우팅을 선언형으로 제어합니다.
 - 주문 계열 트래픽(`/api/orders`, `/api/carts`, `/api/products`, `/api/payments`, `/api/deliveries`, `/api/users`, `/api/sellers`, `/api/categories`)은 `ORDER_SERVICE_URI`(기본값 `http://localhost:8083`)로 전달하고, 쿠폰 계열(`/api/coupons/**`, `/api/users/*/coupons/**`)은 `COUPON_SERVICE_URI`(기본값 `http://localhost:8082`)로 전달합니다. 쿠폰 전용 라우트는 `order: -1` 처리해 `/api/users/{id}/coupons` 충돌을 예방했습니다.
 - `gateway-service/src/main/resources/application.yml`은 공통 CORS 허용(`GATEWAY_ALLOWED_ORIGINS`), Header 중복 제거(`DedupeResponseHeader`), Netty HTTP Client 타임아웃, Prometheus/health 노출을 기본값으로 제공합니다.
 - `gateway-service/Dockerfile`과 `docker-compose.yml`에 `gateway` 서비스를 추가해 `docker compose up gateway` 명령만으로 Edge를 띄울 수 있으며, Compose 환경에서는 `host.docker.internal`을 기본 URI로 사용해 로컬에서 구동 중인 order/coupon 인스턴스를 곧바로 프록시할 수 있습니다.
+
+```
+Client Request: /api/orders/123
+         │
+         ▼
+┌────────────────────────┐
+│ gateway-service        │
+│ - Route: /api/orders/**│
+│ - Filters: CORS, Auth  │
+└──────────┬─────────────┘
+           │forward
+           ▼
+    http://ORDER_SERVICE_URI
+
+Client Request: /api/coupons/available
+           │
+           ▼
+┌────────────────────────┐
+│ Route: /api/coupons/** │
+└──────────┬─────────────┘
+           ▼
+    http://COUPON_SERVICE_URI
+```
 
 ## 3. 데이터베이스 및 docker-compose
 - `order-mysql`, `coupon-mysql` 두 개의 MySQL 컨테이너를 추가해 서비스별 DB를 완전히 분리했습니다. 각 서비스의 `application-local.yml`이 해당 DSN을 기본값으로 사용합니다.
@@ -40,13 +122,54 @@
 - OpenTelemetry Collector(`otel-collector`)와 Zipkin을 구성해 OTLP 수집 → Zipkin 저장 → Grafana/Zipkin UI에서 추적을 확인할 수 있습니다.
 - 기존 Loki/Promtail/Influx/Telegraf/Grafana 스택은 그대로 유지되며, Telegraf는 `order-mysql`을 기본 모니터링 대상으로 변경했습니다.
 
+```
+docker-compose.yml
+┌─────────────┬───────────────────────────────────────┐
+│ Service     │ 용도                                  │
+├─────────────┼───────────────────────────────────────┤
+│ order-mysql │ order-service 전용 DB                 │
+│ coupon-mysql│ coupon-service 전용 DB                │
+│ zookeeper   │ Kafka 메타데이터                      │
+│ kafka       │ 이벤트 브로커                         │
+│ kafka-ui    │ 토픽 모니터링                         │
+│ otel-collector│ OTLP 수집 → Zipkin                  │
+│ zipkin      │ 트레이스 조회                         │
+│ gateway     │ Edge Proxy                            │
+└─────────────┴───────────────────────────────────────┘
+```
+
 ## 4. CI/CD 분리
 - `.github/workflows/order-service-ci.yml`과 `coupon-service-ci.yml`을 추가해 서비스별 테스트 파이프라인을 독립적으로 실행하도록 구성했습니다.
 - 공통 모듈이나 루트 설정이 바뀌더라도 해당 모듈 테스트만 수행하므로, 배포 승인 및 롤백 단위를 서비스별로 관리할 수 있습니다.
 
+```
+push to order-service/**
+        │
+        ▼
+GitHub Action: order-service-ci
+    ├─ checkout
+    ├─ ./gradlew :order-service:test
+    └─ artifact/upload
+
+push to coupon-service/**
+        │
+        ▼
+GitHub Action: coupon-service-ci
+    └─ ./gradlew :coupon-service:test
+```
+
 ## 5. 사용자 검증
 - `coupon-service`는 더 이상 `UserRepository`에 직접 접근하지 않습니다. 대신 `UserClient` 인터페이스 + `HttpUserClient`가 `/internal/users/{id}` 외부 API를 호출해 존재 여부만 확인합니다.
 - 테스트 환경에서는 `StubUserClient`가 주입돼 외부 의존 없이 시나리오를 실행합니다.
+
+```
+CouponService
+   │  (needs user validation)
+   ▼
+UserClient
+   ├─ HttpUserClient  ──► GET /internal/users/{id} (order-service)
+   └─ StubUserClient (tests)
+```
 
 ## 6. 향후 보완 과제
 1. **Gateway 인증·정책 강화**: Spring Cloud Gateway에 JWT/Session 인증, Rate-Limiter, Circuit Breaker(Resilience4j) 필터를 추가해 엣지 보안을 강화합니다.

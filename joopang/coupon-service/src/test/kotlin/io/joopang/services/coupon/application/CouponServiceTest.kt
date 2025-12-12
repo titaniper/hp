@@ -1,6 +1,7 @@
 package io.joopang.services.coupon.application
 
 import io.joopang.services.common.domain.Money
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.coupon.contract.CouponStatus
 import io.joopang.services.coupon.contract.CouponType
 import io.joopang.services.coupon.domain.Coupon
@@ -65,7 +66,7 @@ class CouponServiceTest @Autowired constructor(
                 ),
             )
         }
-        val expiredCouponId = expiredCoupon.id
+        val expiredCouponId = expiredCoupon.requireId()
 
         val results = couponService.getUserCoupons(userId)
 

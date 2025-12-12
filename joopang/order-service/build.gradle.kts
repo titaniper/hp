@@ -37,6 +37,7 @@ dependencies {
     testImplementation("io.kotest:kotest-assertions-core:5.8.0")
     testImplementation("io.kotest:kotest-property:5.8.0")
     testImplementation(libs.spring.kafka.test)
+    testImplementation("org.flywaydb:flyway-core")
 }
 
 java {

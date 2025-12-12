@@ -1,6 +1,7 @@
 package io.joopang.services.coupon.application
 
 import io.joopang.common.lock.DistributedLock
+import io.joopang.services.common.domain.requireId
 import io.joopang.services.coupon.contract.CouponStatus
 import io.joopang.services.coupon.contract.CouponType
 import io.joopang.services.coupon.domain.Coupon

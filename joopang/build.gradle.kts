@@ -1,7 +1,7 @@
 import io.spring.gradle.dependencymanagement.dsl.DependencyManagementExtension
+import org.gradle.api.Project
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.tasks.testing.Test
-import org.jetbrains.kotlin.gradle.plugin.allopen.AllOpenExtension
-import org.jetbrains.kotlin.gradle.plugin.noarg.NoArgExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -11,8 +11,10 @@ plugins {
     alias(libs.plugins.kotlin.noarg) apply false
     alias(libs.plugins.spring.boot) apply false
     alias(libs.plugins.spring.dependency.management) apply false
-    id("jacoco") apply false
 }
+
+val libsCatalog = extensions.getByType(VersionCatalogsExtension::class.java).named("libs")
+val springCloudBom = libsCatalog.findLibrary("spring.cloud.dependencies").orElseThrow().get().toString()
 
 allprojects {
     group = property("app.group").toString()
@@ -29,24 +31,8 @@ subprojects {
     apply(plugin = "org.jetbrains.kotlin.plugin.noarg")
     apply(plugin = "io.spring.dependency-management")
 
-    extensions.configure(AllOpenExtension::class.java) {
-        annotation("jakarta.persistence.Entity")
-        annotation("jakarta.persistence.Embeddable")
-        annotation("jakarta.persistence.MappedSuperclass")
-        annotation("javax.persistence.Entity")
-        annotation("javax.persistence.Embeddable")
-        annotation("javax.persistence.MappedSuperclass")
-    }
-
-    extensions.configure(NoArgExtension::class.java) {
-        annotation("jakarta.persistence.Entity")
-        annotation("jakarta.persistence.Embeddable")
-        annotation("jakarta.persistence.MappedSuperclass")
-        annotation("javax.persistence.Entity")
-        annotation("javax.persistence.Embeddable")
-        annotation("javax.persistence.MappedSuperclass")
-        invokeInitializers = false
-    }
+    configureAllOpenAnnotations()
+    configureNoArgAnnotations()
 
     tasks.withType<KotlinCompile>().configureEach {
         kotlinOptions {
@@ -61,7 +47,45 @@ subprojects {
 
     extensions.configure(DependencyManagementExtension::class.java) {
         imports {
-            mavenBom(libs.spring.cloud.dependencies.get().toString())
+            mavenBom(springCloudBom)
+        }
+    }
+}
+
+fun Project.configureAllOpenAnnotations() {
+    pluginManager.withPlugin("org.jetbrains.kotlin.plugin.allopen") {
+        val extension = extensions.findByName("allOpen") ?: return@withPlugin
+        val annotationMethod = extension.javaClass.getMethod("annotation", String::class.java)
+        listOf(
+            "jakarta.persistence.Entity",
+            "jakarta.persistence.Embeddable",
+            "jakarta.persistence.MappedSuperclass",
+            "javax.persistence.Entity",
+            "javax.persistence.Embeddable",
+            "javax.persistence.MappedSuperclass",
+        ).forEach { annotation ->
+            annotationMethod.invoke(extension, annotation)
+        }
+    }
+}
+
+fun Project.configureNoArgAnnotations() {
+    pluginManager.withPlugin("org.jetbrains.kotlin.plugin.noarg") {
+        val extension = extensions.findByName("kotlinNoArg") ?: return@withPlugin
+        val annotationMethod = extension.javaClass.getMethod("annotation", String::class.java)
+        listOf(
+            "jakarta.persistence.Entity",
+            "jakarta.persistence.Embeddable",
+            "jakarta.persistence.MappedSuperclass",
+            "javax.persistence.Entity",
+            "javax.persistence.Embeddable",
+            "javax.persistence.MappedSuperclass",
+        ).forEach { annotation ->
+            annotationMethod.invoke(extension, annotation)
+        }
+        runCatching {
+            val setter = extension.javaClass.getMethod("setInvokeInitializers", Boolean::class.javaPrimitiveType)
+            setter.invoke(extension, false)
         }
     }
 }

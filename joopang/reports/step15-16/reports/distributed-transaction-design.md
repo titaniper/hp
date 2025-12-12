@@ -50,6 +50,31 @@
 • 코디네이터 다운 시 어느 참여자가 커밋했는지 모름 → SPOF
 ```
 
+```java
+@Service
+public class OrderPayment2PcService {
+
+    private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
+
+    public OrderPayment2PcService(OrderRepository orderRepository,
+                                  PaymentRepository paymentRepository) {
+        this.orderRepository = orderRepository;
+        this.paymentRepository = paymentRepository;
+    }
+
+    /**
+     * spring.jta.enabled=true 환경에서 XA 트랜잭션 매니저를 지정해 두 DB를 한 트랜잭션으로 묶는다.
+     */
+    @Transactional(transactionManager = "xaTransactionManager")
+    public void createOrderWith2Pc(PlaceOrderRequest request) {
+        OrderEntity order = orderRepository.save(request.toOrder());
+        paymentRepository.save(PaymentEntity.pending(order.getId(), request.amount()));
+        // 참여 DB 중 하나라도 실패하면 전체 트랜잭션이 롤백된다.
+    }
+}
+```
+
 ### 2.3 부분 실패 (Partial Failure)
 
 분산 시스템에서는 네트워크 지연이나 서비스 장애로 인해 프로세스의 일부만 성공하고 일부는 실패하는 상황이 발생할 수 있습니다. 이로 인해 데이터 불일치(Inconsistency)가 발생할 위험이 큽니다.
@@ -75,6 +100,69 @@
 - **성공 시**: 다음 로컬 트랜잭션을 이어서 실행.
 - **실패 시**: 이전에 성공한 트랜잭션들을 취소하는 **보상 트랜잭션(Compensating Transaction)**을 역순으로 실행.
 
+```
+Choreography 예시
+┌────────┐   OrderCreated   ┌────────┐   PaymentCaptured   ┌──────────┐
+│ Order  │ ───────────────► │ Payment│ ──────────────────► │ Inventory│
+└────────┘ ◄───── Cancel ───└────────┘◄──── StockRelease ─└──────────┘
+ (각 서비스가 이벤트 구독/발행으로 흐름 연결, 분산된 상태머신)
+
+Orchestration 예시
+┌─────────────────────────┐
+│ Saga Orchestrator       │
+│ 1. reserveStock()       │◄───── 보상 호출 reserveCancel()
+│ 2. requestPayment()     │◄───── 보상 호출 refundPayment()
+│ 3. markCouponUsed()     │◄───── 보상 호출 rollbackCoupon()
+└─────────────────────────┘
+   │            │            │
+   ▼            ▼            ▼
+Order Svc   Payment Svc   Coupon Svc  (Orchestrator가 순서/에러 처리 중앙 통제)
+```
+
+```java
+@Service
+public class OrderPaymentSagaService {
+
+    private final InventoryClient inventoryClient;
+    private final PaymentClient paymentClient;
+    private final CouponClient couponClient;
+
+    public OrderPaymentSagaService(InventoryClient inventoryClient,
+                                   PaymentClient paymentClient,
+                                   CouponClient couponClient) {
+        this.inventoryClient = inventoryClient;
+        this.paymentClient = paymentClient;
+        this.couponClient = couponClient;
+    }
+
+    /**
+     * Saga Orchestrator가 각 단계 성공 시 보상 액션을 스택에 쌓고, 실패 시 역순으로 실행한다.
+     */
+    public void execute(OrderRequest request) {
+        Deque<Runnable> compensations = new ArrayDeque<>();
+        try {
+            ReservationId reservation = inventoryClient.reserve(request.items());
+            compensations.push(() -> inventoryClient.release(reservation));
+
+            PaymentReceipt receipt = paymentClient.pay(request.payment());
+            compensations.push(() -> paymentClient.refund(receipt));
+
+            couponClient.markUsed(request.couponId(), request.userId());
+            compensations.push(() -> couponClient.rollback(request.couponId(), request.userId()));
+        } catch (Exception ex) {
+            while (!compensations.isEmpty()) {
+                try {
+                    compensations.pop().run();
+                } catch (Exception ignore) {
+                    // 보상 실패는 로깅/재시도 대상으로 남긴다.
+                }
+            }
+            throw ex;
+        }
+    }
+}
+```
+
 #### 구현 방식 선택
 
 | 방식 | 설명 | 장점 | 단점 |
@@ -91,6 +179,68 @@
 1. 비즈니스 데이터를 저장할 때, 동일한 트랜잭션 내에서 `outbox` 테이블에 이벤트 메시지를 저장합니다. (Local Transaction 보장)
 1. 별도의 프로세스(Message Relay)가 `outbox` 테이블을 폴링하거나 CDC(Change Data Capture)를 통해 메시지 브로커(Kafka 등)로 이벤트를 발행합니다.
 1. 이를 통해 **"적어도 한 번(At-least-once)"** 메시지 발행을 보장하여 데이터 일관성을 맞춥니다.
+
+```
+사용자 요청
+   │
+   ▼
+┌──────────────────────────────┐
+│ 주문 DB Local Tx             │
+│ - orders/stock 업데이트      │
+│ - outbox 테이블 insert       │  ← 같은 트랜잭션
+└──────────────────────────────┘
+        │ Commit
+        ▼
+┌──────────────────────────────┐    Kafka / 외부 시스템
+│ Outbox Relay (배치/워커)     │ ───────────────────────►
+│ - outbox 레코드 Poll         │   • publish OrderPaid
+│ - 성공 시 outbox 삭제        │   • 실패 시 retry/백오프
+└──────────────────────────────┘
+```
+
+```java
+@Entity
+public class OutboxMessage {
+    @Id @GeneratedValue
+    private Long id;
+    private String aggregateType;
+    private String aggregateId;
+    private String eventType;
+    @Lob
+    private String payload;
+    private Instant createdAt = Instant.now();
+    // getters/setters 생략
+}
+
+@Service
+public class PaymentCompletionService {
+
+    private final OrderRepository orderRepository;
+    private final OutboxRepository outboxRepository;
+
+    @Transactional
+    public void markPaid(PaymentCommand command) {
+        Order order = orderRepository.markPaid(command.orderId(), command.paidAt());
+        OutboxMessage message = OutboxMessageBuilder.orderPaid(order);
+        outboxRepository.save(message); // 주문 업데이트와 동일한 로컬 트랜잭션
+    }
+}
+
+@Component
+public class OutboxRelay {
+    private final OutboxRepository outboxRepository;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    @Scheduled(fixedDelayString = "PT5S")
+    public void flush() {
+        List<OutboxMessage> batch = outboxRepository.findTop100ByOrderByIdAsc();
+        for (OutboxMessage message : batch) {
+            kafkaTemplate.send(message.topic(), message.getAggregateId(), message.getPayload());
+            outboxRepository.delete(message); // 성공 시 제거, 실패 시 레코드가 남아 재시도됨
+        }
+    }
+}
+```
 
 ### 3.3 멱등성 (Idempotency) 설계
 
@@ -109,6 +259,19 @@
 ## 5. 현재 코드 적용 현황
 
 - **Saga Orchestration**: `order-service/src/main/kotlin/io/joopang/services/order/application/OrderService.kt`가 주문 생성, 결제, 재고 차감, 쿠폰 사용 단계별로 로컬 트랜잭션을 실행하고 검증 실패 시 즉시 롤백합니다.
+- 예시 코드:
+
+    ```kotlin
+    TransactionSynchronizationManager.registerSynchronization(
+        object : TransactionSynchronization {
+            override fun afterCommit() {
+                dataTransmissionService.send(payload)
+                orderEventPublisher.publishOrderPaid(event)
+            }
+        },
+    )
+    ```
+
 - **분리된 쿠폰 트랜잭션**: `order-service/.../KafkaCouponClient.kt`는 Kafka로 쿠폰 명령을 발행하고, `coupon-service/.../CouponCommandHandler.kt` 는 자체 DB 트랜잭션을 수행 후 응답을 반환하여 Database-per-Service 구조를 유지합니다.
 - **사후 이벤트 처리**: 결제 커밋 후 `TransactionSynchronizationManager.afterCommit`에서만 `OrderDataTransmissionService`와 `OrderEventPublisher`를 호출하고, 실패 시 `retryQueue`에 적재하여 부분 실패를 격리합니다.
 - **동시성/멱등성 장치**: 재고 차감은 `@DistributedLock`으로, 쿠폰 발급 큐는 Redis Sorted Set/Stream (`coupon-service/.../CouponIssueCoordinator.kt`)으로 중복 요청을 제거합니다.

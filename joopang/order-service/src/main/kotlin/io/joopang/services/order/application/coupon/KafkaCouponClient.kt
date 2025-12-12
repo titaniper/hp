@@ -34,10 +34,11 @@ class KafkaCouponClient(
             userId = userId,
         )
         val result = execute(command)
-        if (!result.success || result.coupon == null) {
+        val coupon = result.coupon
+        if (!result.success || coupon == null) {
             throw InvalidCouponException(result.errorMessage ?: "Coupon validation failed")
         }
-        return result.coupon
+        return coupon
     }
 
     override fun markCouponUsed(couponId: Long, userId: Long, orderId: Long) {

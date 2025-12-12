@@ -32,24 +32,3 @@ fun CouponSnapshot.calculateDiscount(subtotal: Money): Money {
     }
     return if (rawDiscount > subtotal) subtotal else rawDiscount
 }
-    fun assertUsable(referenceTime: Instant = Instant.now()) {
-        if (status != CouponStatus.AVAILABLE) {
-            throw InvalidCouponException("Coupon $id is not available for use")
-        }
-        if (isExpired(referenceTime)) {
-            throw InvalidCouponException("Coupon $id is expired")
-        }
-    }
-
-    fun isExpired(referenceTime: Instant = Instant.now()): Boolean =
-        expiredAt?.let { referenceTime.isAfter(it) } ?: false
-
-    fun calculateDiscount(subtotal: Money): Money {
-        val rawDiscount = when (type) {
-            CouponType.PERCENTAGE -> subtotal * value
-            CouponType.AMOUNT -> Money.of(value)
-            CouponType.GIFT -> subtotal
-        }
-        return if (rawDiscount > subtotal) subtotal else rawDiscount
-    }
-}
