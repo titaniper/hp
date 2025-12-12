@@ -92,3 +92,217 @@
 7. **배송 서비스**: '결제 완료' 이벤트 수신 후 배송 준비 시작.
 
 이 과정에서 만약 **결제 서비스**가 다운되더라도, 사용자는 상품을 장바구니에 담거나 상품 목록을 보는(**상품 서비스**) 기능은 정상적으로 이용할 수 있습니다. 이것이 MSA의 핵심인 **장애 격리**입니다.
+
+---
+
+# 4. 단일 모놀리식 서비스 → MSA 전환 로드맵 (실무 가이드)
+
+아래는 **단일 모놀리식 서비스 → MSA(Microservices Architecture)** 로 전환할 때 일반적으로 수행해야 하는 전체적인 로드맵을 **실행 순서 중심, 실무 기준**으로 정리한 것입니다.
+
+## 4.1 목표 정의 및 경계 설정
+
+### 1) 왜 MSA인가?
+
+먼저 조직 내부 합의가 필요합니다. 흔한 목표는 다음과 같습니다.
+
+* 배포 속도 및 독립성 향상
+* 장애 전파 최소화
+* 팀별 독립 개발 속도 증가
+* 도메인 기반 서비스 구조 확립(DDD 기반)
+
+→ 목표 없이 분리하면 **쿼리 분산, 트랜잭션 처리, 운영 난이도**만 증가할 수 있습니다.
+
+### 2) 무엇부터 MSA로 전환할지 결정
+
+모든 것을 한 번에 쪼개면 실패합니다. 가장 좋은 시작점은:
+
+* **변경이 잦은 도메인**
+* **다른 도메인과 의존성이 낮은 도메인**
+* **확장 필요성이 큰 도메인**
+
+예: Auth, User, Billing, Order, Payment, Inventory, Notification, Marketing 등.
+
+## 4.2 MSA 전환 핵심 아키텍처 결정
+
+### 1) 서비스 분리 기준 (DDD)
+
+* Bounded Context 단위로 나눌 것
+* Context Map 작성
+* Entity/ValueObject/Aggregate 기준 재정의
+* 각 Context 간 **동기/비동기 인터페이스**를 설계할 것
+
+### 2) 서비스 간 통신 방식
+
+반드시 **혼합 전략**을 쓴다:
+
+* 동기: REST/gRPC
+* 비동기: Kafka (이벤트 발행/소비 기반)
+* Outbox 패턴: DB → Kafka 메시지 정합성 확보
+* SAGA 패턴: 분산 트랜잭션 처리
+
+### 3) 데이터 분리 전략
+
+MSA의 필수 요소:
+
+* 서비스별 DB 독립
+* 동일 스키마 공유 금지
+* 조회용은 API Composition / CQRS / Materialized View 사용
+* 변경 이벤트(Event-driven)로 다른 서비스 상태에 반영
+
+## 4.3 인프라 및 플랫폼 준비
+
+### 1) CI/CD 파이프라인
+
+각 서비스는 “독립 배포”가 가능해야 한다.
+
+* GitHub Actions / Jenkins / GitLab CI
+* Canary / Rolling Update
+* Versioning / Tag 기반 배포
+
+### 2) Kubernetes 기반 배포 관리
+
+* Service Mesh (Istio/Linkerd) 고려
+* API Gateway 배치 (Kong, NGINX, Traefik)
+* Observability: Prometheus, Grafana, ELK, OpenTelemetry
+* Config 관리: ConfigMap/Secrets + Vault
+
+### 3) 공통 모듈 제거
+
+모놀리식에서 공통 유틸, DTO 를 그대로 쓰면 MSA 실패.
+
+* 공통 모듈은 **라이브러리화** or **폴리시화**
+* 서비스 간 공유 모델 금지 (명세로만 공유)
+
+## 4.4 도메인 분리 실행 단계
+
+### 1) 최초 서비스 추출
+
+먼저 분리하기 쉬운 서비스 하나를 추출한다:
+
+* Notification Service
+* User/Auth Service
+* Catalog/Inventory Service
+
+실제로 가장 많이 첫 타로 추출되는 것은:
+
+* **Auth** (JWT 발급)
+* **Notification** (독립적이고 변경이 많음)
+* **Order** (초기 수요가 많고 확장 필요)
+
+### 2) 서비스 간 API 계약 정의
+
+* OpenAPI/Swagger 기반 계약 우선
+* Consumer Driven Contract Test 적용 가능 (Pact 등)
+
+### 3) 이벤트 발행 규칙 정의
+
+* 이벤트 명명 규칙
+* Stream/Topic 구조 (Kafka)
+* Payload 스키마(schema registry)
+
+## 4.5 데이터 정합성 및 트랜잭션 패턴 도입
+
+### 1) 분산 트랜잭션 대체 패턴
+
+* **Saga Orchestration / Choreography**
+* **Outbox & CDC** (Debezium 포함 가능)
+* **Idempotency** 설계 필수
+
+### 2) 조회 일관성 처리
+
+MSA 최대 난제: 데이터를 조인할 수 없음
+해결책:
+
+* Composite API
+* Materialized View (별도 조회용 DB 구축)
+* CQRS 패턴
+* Read Model Rebuild
+
+## 4.6 운영/관측 구조 강화
+
+### 1) Observability 3종 구축
+
+* Logs: ELK
+* Metrics: Prometheus
+* Tracing: Jaeger / OpenTelemetry
+
+MSA에서 Log/Trace 없으면 **디버깅 불가**.
+
+### 2) 장애 복구 체계
+
+서비스별:
+
+* Circuit Breaker
+* Retry
+* Timeout
+* Bulkhead (격리 정책)
+
+## 4.7 조직 및 프로세스 변화
+
+### 1) 팀 구조 변화
+
+MSA의 핵심은 조직이다.
+
+* 도메인별 스쿼드로 운영
+* 각 팀이 **개발-테스트-배포**까지 책임
+
+### 2) 문서와 표준화 체계
+
+* API Contract
+* Event Schema
+* Service Documentation
+* Alert/Monitoring Guideline
+
+## 4.8 점진적 마이그레이션 전략
+
+### 1) Strangler Pattern
+
+모놀리스를 완전히 드러내며 대체하는 방식:
+
+* 기존 서비스 앞단에 Gateway 설치
+* 특정 기능만 MSA 서비스로 대체
+* 점진적으로 기능을 이동
+* 최종적으로 모놀리식 제거
+
+### 2) Feature Toggle 방식
+
+신규 기능을 MSA 기반으로 개발하고, 점차 모놀리식 의존도 제거.
+
+## 4.9 실무에서 실패하는 원인과 예방
+
+### 실패 원인
+
+* 서비스 쪼갠 기준이 잘못됨
+* 트랜잭션 관리 실패
+* 성능 이슈 (네트워크 오버헤드)
+* 너무 많은 서비스로 복잡도 증가
+* 팀 역량/운영 인프라 부족
+
+### 예방
+
+* 최소 기능부터 쪼갠다
+* 도메인 모델을 명확히 재정의
+* 비동기 이벤트를 표준화
+* 관측 가능성(Observability) 필수 도입
+* 데이터는 절대 공유하지 않는다
+
+## 4.10 실제로 “해야 하는 항목 체크리스트”
+
+### 기술 체크리스트
+
+* [ ] API Gateway 도입
+* [ ] 서비스 통신 방식 결정(gRPC/REST/Kafka)
+* [ ] Outbox 패턴 적용
+* [ ] Saga(또는 보상 트랜잭션) 적용
+* [ ] Kubernetes 배포 파이프라인 구축
+* [ ] Config 분리 및 Secret 관리
+* [ ] Observability 구축
+
+### 도메인 체크리스트
+
+* [ ] 도메인 분류 및 Bounded Context 도출
+* [ ] Context Map 작성
+* [ ] 서비스별 DB 분리
+* [ ] 새 서비스 1개 이상 추출
+* [ ] API Contract 확립
+* [ ] 이벤트 스키마 확립
