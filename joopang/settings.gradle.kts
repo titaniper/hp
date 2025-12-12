@@ -38,3 +38,4 @@ rootProject.name = "joopang"
 include("common")
 include("order-service")
 include("coupon-service")
+include("gateway-service")

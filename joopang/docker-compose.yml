@@ -60,6 +60,25 @@ services:
       - --performance-schema-consumer-events-statements-history-long=ON
 
   # ---------------------------------------------------------------------------
+  # API Gateway (Spring Cloud Gateway)
+  # ---------------------------------------------------------------------------
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+      args:
+        SPRING_PROFILE: stage
+    container_name: joopang-gateway
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      ORDER_SERVICE_URI: ${GATEWAY_ORDER_SERVICE_URI:http://host.docker.internal:8083}
+      COUPON_SERVICE_URI: ${GATEWAY_COUPON_SERVICE_URI:http://host.docker.internal:8082}
+      GATEWAY_ALLOWED_ORIGINS: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:3000}
+    ports:
+      - "8080:8080"
+
+  # ---------------------------------------------------------------------------
   # Redis: 캐시 및 세션 저장소
   # ---------------------------------------------------------------------------
   redis:
