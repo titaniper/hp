@@ -9,7 +9,9 @@
 
 - `ApplicationEventPublisher` 또는 `ApplicationEventPublisherAware`를 통해 이벤트 발행.
 - `@TransactionalEventListener`를 사용하면 트랜잭션 단계(AFTER_COMMIT, BEFORE_COMMIT 등)에 맞춰 리스너 실행.
-- `@Order`로 다수 리스너의 실행 순서를 지정 가능.
+- **`@Order`**: 여러 리스너가 동일한 이벤트를 구독할 때 **실행 순서**를 제어하는 어노테이션.
+  - 숫자가 작을수록 먼저 실행됨 (`Ordered.HIGHEST_PRECEDENCE` 등 사용 가능).
+  - 동기 리스너 간의 순서 보장이 필요할 때 유용함.
 - 기본적으로 동기 실행이며, `@Async`와 함께 사용하면 비동기 Event Listener 구성 가능.
 
 ## 3. 장점
