@@ -31,15 +31,18 @@ spring_dependency_management = { id = "io.spring.dependency-management", version
 [libraries]
 spring_context = { module = "org.springframework:spring-context" }
 spring_cloud_dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring_cloud_dependencies" }
-spring_boot_dependencies = { module = "org.springframework.boot:spring-boot-dependencies" }
-spring_boot_starter_web = { module = "org.springframework.boot:spring-boot-starter-web" }
-spring_boot_starter_data_jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
-spring_boot_starter_data_redis = { module = "org.springframework.boot:spring-boot-starter-data-redis" }
-spring_boot_starter_actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
-spring_boot_configuration_processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
-spring_boot_starter_test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring_boot_dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring_boot" }
+spring_boot_starter_web = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "spring_boot" }
+spring_boot_starter_data_jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa", version.ref = "spring_boot" }
+spring_boot_starter_data_redis = { module = "org.springframework.boot:spring-boot-starter-data-redis", version.ref = "spring_boot" }
+spring_boot_starter_actuator = { module = "org.springframework.boot:spring-boot-starter-actuator", version.ref = "spring_boot" }
+spring_boot_starter_validation = { module = "org.springframework.boot:spring-boot-starter-validation", version.ref = "spring_boot" }
+spring_boot_configuration_processor = { module = "org.springframework.boot:spring-boot-configuration-processor", version.ref = "spring_boot" }
+spring_boot_starter_test = { module = "org.springframework.boot:spring-boot-starter-test", version.ref = "spring_boot" }
+spring_kafka = { module = "org.springframework.kafka:spring-kafka" }
+spring_kafka_test = { module = "org.springframework.kafka:spring-kafka-test" }
 
-spring_boot_testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
+spring_boot_testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers", version.ref = "spring_boot" }
 test_containers_junit_jupiter = { module = "org.testcontainers:junit-jupiter" }
 test_containers_mysql = { module = "org.testcontainers:mysql" }
 
@@ -59,5 +62,6 @@ spring_mockk = { module = "com.ninja-squad:springmockk", version.ref = "spring_m
 springdoc_openapi_starter_webmvc_ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc_openapi" }
 p6spy_spring_boot_starter = { module = "com.github.gavlyukovskiy:p6spy-spring-boot-starter", version.ref = "p6spy" }
 redisson_client = { module = "org.redisson:redisson-spring-boot-starter", version.ref = "redisson" }
+spring_cloud_starter_gateway = { module = "org.springframework.cloud:spring-cloud-starter-gateway" }
 [bundles]
 testcontainers_mysql = ["test_containers_mysql", "spring_boot_testcontainers", "test_containers_junit_jupiter","spring_boot_starter_test"]

@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: coupon-service
+  profiles:
+    default: local
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: '*'
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+  port: ${SERVER_PORT:8082}
+
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: true
+
+coupon:
+  issue:
+    async-enabled: true
+    queue:
+      prefix: coupon:queue-position
+      ttl-seconds: 86400
+      average-processing-millis: 50
+    stream:
+      request-key: coupon:request-stream
+      issue-key: coupon:issue-stream
+      group: coupon-issue-group
+      consumer: coupon-issue-consumer
+    worker:
+      enabled: true
+      poll-timeout-millis: 500
+
+clients:
+  user:
+    base-url: ${USER_SERVICE_URL:http://localhost:8081}
+
+kafka:
+  topics:
+    coupon-command: ${COUPON_COMMAND_TOPIC:coupon-command}
+    coupon-command-reply: ${COUPON_COMMAND_REPLY_TOPIC:coupon-command-reply}
+  coupon-command:
+    group-id: ${COUPON_COMMAND_GROUP_ID:coupon-command-worker}

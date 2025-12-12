@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: gateway-service
+  profiles:
+    default: local
+  cloud:
+    gateway:
+      default-filters:
+        - name: DedupeResponseHeader
+          args:
+            name: Access-Control-Allow-Origin Access-Control-Allow-Credentials
+            strategy: RETAIN_UNIQUE
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 5s
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: ${GATEWAY_ALLOWED_ORIGINS:http://localhost:3000}
+            allowedHeaders: "*"
+            allowedMethods: "*"
+            allowCredentials: true
+      routes:
+        - id: order-service
+          uri: ${ORDER_SERVICE_URI:http://localhost:8083}
+          predicates:
+            - Path=/api/orders/**,/api/carts/**,/api/products/**,/api/payments/**,/api/deliveries/**,/api/users/**,/api/sellers/**,/api/categories/**
+        - id: coupon-service
+          uri: ${COUPON_SERVICE_URI:http://localhost:8082}
+          order: -1
+          predicates:
+            - Path=/api/coupons/**,/api/users/*/coupons/**
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    reactor.netty.http.client: WARN
