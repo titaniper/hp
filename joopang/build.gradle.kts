@@ -1,146 +1,91 @@
-import org.gradle.api.tasks.SourceSetContainer
+import io.spring.gradle.dependencymanagement.dsl.DependencyManagementExtension
+import org.gradle.api.Project
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.tasks.testing.Test
-import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    alias(libs.plugins.kotlin.jvm)                     
-    alias(libs.plugins.kotlin.spring)                  
-    alias(libs.plugins.kotlin.allopen)
-    alias(libs.plugins.kotlin.noarg)
-    alias(libs.plugins.spring.boot)                    
-    alias(libs.plugins.spring.dependency.management)   
-    id("jacoco")                                       
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.spring) apply false
+    alias(libs.plugins.kotlin.allopen) apply false
+    alias(libs.plugins.kotlin.noarg) apply false
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.spring.dependency.management) apply false
 }
 
-allOpen {
-    annotation("jakarta.persistence.Entity")
-    annotation("jakarta.persistence.Embeddable")
-    annotation("jakarta.persistence.MappedSuperclass")
-    annotation("javax.persistence.Entity")
-    annotation("javax.persistence.Embeddable")
-    annotation("javax.persistence.MappedSuperclass")
-}
-
-noArg {
-    annotation("jakarta.persistence.Entity")
-    annotation("jakarta.persistence.Embeddable")
-    annotation("jakarta.persistence.MappedSuperclass")
-    annotation("javax.persistence.Entity")
-    annotation("javax.persistence.Embeddable")
-    annotation("javax.persistence.MappedSuperclass")
-    invokeInitializers = false
-}
+val libsCatalog = extensions.getByType(VersionCatalogsExtension::class.java).named("libs")
+val springCloudBom = libsCatalog.findLibrary("spring.cloud.dependencies").orElseThrow().get().toString()
 
 allprojects {
     group = property("app.group").toString()
-}
-
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
+    version = property("app.version")
+    repositories {
+        mavenCentral()
     }
 }
 
-dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-reflect")        
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")    
+subprojects {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+    apply(plugin = "org.jetbrains.kotlin.plugin.allopen")
+    apply(plugin = "org.jetbrains.kotlin.plugin.noarg")
+    apply(plugin = "io.spring.dependency-management")
 
-    implementation(libs.spring.boot.starter.web)
-    implementation(libs.spring.boot.starter.data.jpa)
-    implementation(libs.spring.boot.starter.data.redis)
-    implementation("org.springframework.boot:spring-boot-starter-aop")
-    implementation(libs.redisson.client)
-    implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-mysql")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")  
-    implementation("org.springframework.boot:spring-boot-starter-validation")  
-    implementation(libs.springdoc.openapi.starter.webmvc.ui)
-    implementation(libs.p6spy.spring.boot.starter)
+    configureAllOpenAnnotations()
+    configureNoArgAnnotations()
 
-    annotationProcessor(libs.spring.boot.configuration.processor) 
+    tasks.withType<KotlinCompile>().configureEach {
+        kotlinOptions {
+            freeCompilerArgs = listOf("-Xjsr305=strict")
+            jvmTarget = JavaVersion.VERSION_17.toString()
+        }
+    }
 
-    runtimeOnly(libs.mysql.connector)
+    tasks.withType<Test>().configureEach {
+        useJUnitPlatform()
+    }
 
-    testImplementation(libs.spring.boot.starter.test)
-    testImplementation(libs.spring.boot.testcontainers)
-    testImplementation(libs.test.containers.junit.jupiter)
-    testImplementation(libs.test.containers.mysql)
-
-    testImplementation("io.kotest:kotest-runner-junit5:5.8.0")  
-    testImplementation("io.kotest:kotest-assertions-core:5.8.0") 
-    testImplementation("io.kotest:kotest-property:5.8.0")        
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_17  
-}
-
-with(extensions.getByType(JacocoPluginExtension::class.java)) {
-    toolVersion = "0.8.7"
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs = listOf("-Xjsr305=strict")
-
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    extensions.configure(DependencyManagementExtension::class.java) {
+        imports {
+            mavenBom(springCloudBom)
+        }
     }
 }
 
-tasks.getByName("bootJar") {
-    enabled = true
-}
-
-tasks.getByName("jar") {
-    enabled = false
-}
-
-tasks.test {
-    ignoreFailures = true
-    useJUnitPlatform()
-    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
-        systemProperty("spring.profiles.active", "test")
+fun Project.configureAllOpenAnnotations() {
+    pluginManager.withPlugin("org.jetbrains.kotlin.plugin.allopen") {
+        val extension = extensions.findByName("allOpen") ?: return@withPlugin
+        val annotationMethod = extension.javaClass.getMethod("annotation", String::class.java)
+        listOf(
+            "jakarta.persistence.Entity",
+            "jakarta.persistence.Embeddable",
+            "jakarta.persistence.MappedSuperclass",
+            "javax.persistence.Entity",
+            "javax.persistence.Embeddable",
+            "javax.persistence.MappedSuperclass",
+        ).forEach { annotation ->
+            annotationMethod.invoke(extension, annotation)
+        }
     }
 }
 
-tasks.jacocoTestReport {
-    dependsOn(tasks.test)
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-        csv.required.set(false)
-    }
-}
-
-tasks.test {
-    finalizedBy(tasks.jacocoTestReport)
-}
-
-val testSourceSet = extensions.getByType(SourceSetContainer::class.java).named("test")
-
-tasks.register<Test>("unitTest") {
-    description = "Runs unit tests only (excludes integration tests)."
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = testSourceSet.get().output.classesDirs
-    classpath = testSourceSet.get().runtimeClasspath
-    useJUnitPlatform {
-        excludeTags("integration")
-    }
-    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
-        systemProperty("spring.profiles.active", "test")
-    }
-}
-
-tasks.register<Test>("integrationTest") {
-    description = "Runs only integration tests tagged with @Tag(\"integration\")."
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = testSourceSet.get().output.classesDirs
-    classpath = testSourceSet.get().runtimeClasspath
-    useJUnitPlatform {
-        includeTags("integration")
-    }
-    if (System.getProperty("spring.profiles.active").isNullOrBlank()) {
-        systemProperty("spring.profiles.active", "test")
+fun Project.configureNoArgAnnotations() {
+    pluginManager.withPlugin("org.jetbrains.kotlin.plugin.noarg") {
+        val extension = extensions.findByName("kotlinNoArg") ?: return@withPlugin
+        val annotationMethod = extension.javaClass.getMethod("annotation", String::class.java)
+        listOf(
+            "jakarta.persistence.Entity",
+            "jakarta.persistence.Embeddable",
+            "jakarta.persistence.MappedSuperclass",
+            "javax.persistence.Entity",
+            "javax.persistence.Embeddable",
+            "javax.persistence.MappedSuperclass",
+        ).forEach { annotation ->
+            annotationMethod.invoke(extension, annotation)
+        }
+        runCatching {
+            val setter = extension.javaClass.getMethod("setInvokeInitializers", Boolean::class.javaPrimitiveType)
+            setter.invoke(extension, false)
+        }
     }
 }

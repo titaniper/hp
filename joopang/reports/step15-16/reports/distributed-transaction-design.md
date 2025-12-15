@@ -1,0 +1,281 @@
+# 도메인 분리에 따른 분산 트랜잭션 설계 및 대응 방안
+
+## 1. 배경 및 목적
+
+서비스 규모가 확장됨에 따라 단일 모놀리식(Monolithic) 구조에서 도메인별로 어플리케이션 서버와 데이터베이스를 분리하는 마이크로서비스 아키텍처(MSA)로 전환하고 있습니다. 이 과정에서 **Database per Service** 패턴을 적용하게 되며, 기존 단일 DB에서 보장되던 **ACID 트랜잭션**을 여러 서비스에 걸쳐 보장해야 하는 기술적 난제에 직면하게 됩니다.
+
+본 문서는 도메인 분리 시 발생하는 트랜잭션 처리의 한계를 분석하고, 이를 해결하기 위한 설계 패턴과 대응 방안을 정의합니다.
+
+## 2. 트랜잭션 처리의 한계 (Problem)
+
+### 2.1 ACID 트랜잭션의 부재
+
+단일 DB 환경에서는 DBMS가 제공하는 트랜잭션 기능을 통해 데이터의 무결성(Atomicity, Consistency)을 쉽게 보장할 수 있었습니다. 하지만 DB가 물리적으로 분리되면, 여러 서비스에 걸친 비즈니스 로직(예: 주문 -> 결제 -> 재고 차감)을 하나의 트랜잭션으로 묶을 수 없습니다.
+
+```
+단일 서비스 (한 DB)
+┌──────────────┐     ┌──────────┐
+│ Order API    │ --> │ Monolithic DB │  (BEGIN ~ COMMIT 로 모든 단계 동기 처리)
+└──────────────┘     └──────────┘
+
+도메인 분리 후
+┌────────┐   HTTP   ┌────────┐   HTTP   ┌────────┐
+│ Order  │ -------> │ Payment│ -------> │ Stock  │
+└────────┘           └────────┘          └────────┘
+        │ (각 서비스별 DB)    │             │
+        └─ Order DB           └─ Payment DB └─ Product DB
+```
+
+각 단계가 서로 다른 커밋 경계를 가지면서 **연쇄 실패**가 생기면 수동 보상 로직 없이는 데이터 정합성을 잃게 됩니다.
+
+### 2.2 2PC (Two-Phase Commit)의 한계
+
+전통적인 분산 트랜잭션 프로토콜인 2PC(XA 트랜잭션)는 다음과 같은 문제로 인해 클라우드 네이티브 환경이나 MSA에 적합하지 않습니다.
+
+- **Blocking**: 코디네이터와 참여자 간의 동기 통신으로 인해 락(Lock)이 길어지고 성능이 저하됩니다.
+- **SPOF (Single Point of Failure)**: 코디네이터 장애 시 전체 시스템이 마비될 수 있습니다.
+- **NoSQL 미지원**: 많은 NoSQL 데이터베이스가 2PC를 지원하지 않습니다.
+
+```
+          Prepare? (동기)              Commit? (동기)
+    ┌─────────────────────┐        ┌─────────────────────┐
+    │  Transaction Coord. │        │  Transaction Coord. │
+    └──────────┬──────────┘        └──────────┬──────────┘
+               │                                │
+        ┌──────▼──────┐                  ┌──────▼──────┐
+        │ Order DB    │                  │ Payment DB  │  (각각 락 보유)
+        └─────────────┘                  └─────────────┘
+
+• Prepare 단계에서 한 참여자가 응답하지 않으면 모든 락이 유지됨 → Blocking
+• 코디네이터 다운 시 어느 참여자가 커밋했는지 모름 → SPOF
+```
+
+```java
+@Service
+public class OrderPayment2PcService {
+
+    private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
+
+    public OrderPayment2PcService(OrderRepository orderRepository,
+                                  PaymentRepository paymentRepository) {
+        this.orderRepository = orderRepository;
+        this.paymentRepository = paymentRepository;
+    }
+
+    /**
+     * spring.jta.enabled=true 환경에서 XA 트랜잭션 매니저를 지정해 두 DB를 한 트랜잭션으로 묶는다.
+     */
+    @Transactional(transactionManager = "xaTransactionManager")
+    public void createOrderWith2Pc(PlaceOrderRequest request) {
+        OrderEntity order = orderRepository.save(request.toOrder());
+        paymentRepository.save(PaymentEntity.pending(order.getId(), request.amount()));
+        // 참여 DB 중 하나라도 실패하면 전체 트랜잭션이 롤백된다.
+    }
+}
+```
+
+### 2.3 부분 실패 (Partial Failure)
+
+분산 시스템에서는 네트워크 지연이나 서비스 장애로 인해 프로세스의 일부만 성공하고 일부는 실패하는 상황이 발생할 수 있습니다. 이로 인해 데이터 불일치(Inconsistency)가 발생할 위험이 큽니다.
+
+```
+시간 →
+1) Order 서비스에서 결제 요청 발행 (성공)
+2) Payment 서비스가 잔액 차감 후 응답 전 네트워크 장애 발생
+3) Order 서비스는 타임아웃으로 실패 처리 → 주문 상태 = 미결제
+4) Payment DB에는 이미 잔액 차감 커밋 → 사용자 잔액 불일치
+
+※ 보상 트랜잭션/재시도/멱등성이 없으면 데이터 정합성 회복 불가
+```
+
+## 3. 대응 방안 및 설계 전략 (Solution)
+
+분산 환경에서는 강한 일관성(Strong Consistency) 대신 **결과적 일관성(Eventual Consistency)**을 목표로 하는 것이 일반적입니다. 이를 구현하기 위해 다음과 같은 패턴을 적용합니다.
+
+### 3.1 Saga 패턴 (Saga Pattern)
+
+긴 트랜잭션을 여러 개의 짧은 로컬 트랜잭션으로 분리하고, 순차적으로 실행하는 방식입니다.
+
+- **성공 시**: 다음 로컬 트랜잭션을 이어서 실행.
+- **실패 시**: 이전에 성공한 트랜잭션들을 취소하는 **보상 트랜잭션(Compensating Transaction)**을 역순으로 실행.
+
+```
+Choreography 예시
+┌────────┐   OrderCreated   ┌────────┐   PaymentCaptured   ┌──────────┐
+│ Order  │ ───────────────► │ Payment│ ──────────────────► │ Inventory│
+└────────┘ ◄───── Cancel ───└────────┘◄──── StockRelease ─└──────────┘
+ (각 서비스가 이벤트 구독/발행으로 흐름 연결, 분산된 상태머신)
+
+Orchestration 예시
+┌─────────────────────────┐
+│ Saga Orchestrator       │
+│ 1. reserveStock()       │◄───── 보상 호출 reserveCancel()
+│ 2. requestPayment()     │◄───── 보상 호출 refundPayment()
+│ 3. markCouponUsed()     │◄───── 보상 호출 rollbackCoupon()
+└─────────────────────────┘
+   │            │            │
+   ▼            ▼            ▼
+Order Svc   Payment Svc   Coupon Svc  (Orchestrator가 순서/에러 처리 중앙 통제)
+```
+
+```java
+@Service
+public class OrderPaymentSagaService {
+
+    private final InventoryClient inventoryClient;
+    private final PaymentClient paymentClient;
+    private final CouponClient couponClient;
+
+    public OrderPaymentSagaService(InventoryClient inventoryClient,
+                                   PaymentClient paymentClient,
+                                   CouponClient couponClient) {
+        this.inventoryClient = inventoryClient;
+        this.paymentClient = paymentClient;
+        this.couponClient = couponClient;
+    }
+
+    /**
+     * Saga Orchestrator가 각 단계 성공 시 보상 액션을 스택에 쌓고, 실패 시 역순으로 실행한다.
+     */
+    public void execute(OrderRequest request) {
+        Deque<Runnable> compensations = new ArrayDeque<>();
+        try {
+            ReservationId reservation = inventoryClient.reserve(request.items());
+            compensations.push(() -> inventoryClient.release(reservation));
+
+            PaymentReceipt receipt = paymentClient.pay(request.payment());
+            compensations.push(() -> paymentClient.refund(receipt));
+
+            couponClient.markUsed(request.couponId(), request.userId());
+            compensations.push(() -> couponClient.rollback(request.couponId(), request.userId()));
+        } catch (Exception ex) {
+            while (!compensations.isEmpty()) {
+                try {
+                    compensations.pop().run();
+                } catch (Exception ignore) {
+                    // 보상 실패는 로깅/재시도 대상으로 남긴다.
+                }
+            }
+            throw ex;
+        }
+    }
+}
+```
+
+#### 구현 방식 선택
+
+| 방식 | 설명 | 장점 | 단점 |
+| --- | --- | --- | --- |
+| **Choreography** | 서비스끼리 이벤트를 주고받으며 진행 | 구성 간단, 결합도 낮음 | 흐름 파악 어려움, 순환 의존 위험 |
+| **Orchestration** | 중앙 오케스트레이터가 흐름 제어 | 흐름 명확, 관리 용이 | 오케스트레이터 복잡성 증가 |
+
+> **설계 가이드**: 복잡도가 낮은 초기 단계에는 Choreography를, 비즈니스 로직이 복잡하고 참여 서비스가 많아지면 Orchestration 도입을 권장합니다.
+
+### 3.2 Transactional Outbox 패턴
+
+"DB 업데이트"와 "이벤트 발행"을 원자적으로 처리하기 위한 패턴입니다.
+
+1. 비즈니스 데이터를 저장할 때, 동일한 트랜잭션 내에서 `outbox` 테이블에 이벤트 메시지를 저장합니다. (Local Transaction 보장)
+1. 별도의 프로세스(Message Relay)가 `outbox` 테이블을 폴링하거나 CDC(Change Data Capture)를 통해 메시지 브로커(Kafka 등)로 이벤트를 발행합니다.
+1. 이를 통해 **"적어도 한 번(At-least-once)"** 메시지 발행을 보장하여 데이터 일관성을 맞춥니다.
+
+```
+사용자 요청
+   │
+   ▼
+┌──────────────────────────────┐
+│ 주문 DB Local Tx             │
+│ - orders/stock 업데이트      │
+│ - outbox 테이블 insert       │  ← 같은 트랜잭션
+└──────────────────────────────┘
+        │ Commit
+        ▼
+┌──────────────────────────────┐    Kafka / 외부 시스템
+│ Outbox Relay (배치/워커)     │ ───────────────────────►
+│ - outbox 레코드 Poll         │   • publish OrderPaid
+│ - 성공 시 outbox 삭제        │   • 실패 시 retry/백오프
+└──────────────────────────────┘
+```
+
+```java
+@Entity
+public class OutboxMessage {
+    @Id @GeneratedValue
+    private Long id;
+    private String aggregateType;
+    private String aggregateId;
+    private String eventType;
+    @Lob
+    private String payload;
+    private Instant createdAt = Instant.now();
+    // getters/setters 생략
+}
+
+@Service
+public class PaymentCompletionService {
+
+    private final OrderRepository orderRepository;
+    private final OutboxRepository outboxRepository;
+
+    @Transactional
+    public void markPaid(PaymentCommand command) {
+        Order order = orderRepository.markPaid(command.orderId(), command.paidAt());
+        OutboxMessage message = OutboxMessageBuilder.orderPaid(order);
+        outboxRepository.save(message); // 주문 업데이트와 동일한 로컬 트랜잭션
+    }
+}
+
+@Component
+public class OutboxRelay {
+    private final OutboxRepository outboxRepository;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    @Scheduled(fixedDelayString = "PT5S")
+    public void flush() {
+        List<OutboxMessage> batch = outboxRepository.findTop100ByOrderByIdAsc();
+        for (OutboxMessage message : batch) {
+            kafkaTemplate.send(message.topic(), message.getAggregateId(), message.getPayload());
+            outboxRepository.delete(message); // 성공 시 제거, 실패 시 레코드가 남아 재시도됨
+        }
+    }
+}
+```
+
+### 3.3 멱등성 (Idempotency) 설계
+
+네트워크 재시도나 중복 메시지 수신으로 인해 동일한 요청이 여러 번 처리될 수 있습니다. 따라서 모든 트랜잭션(특히 입금, 출금 등)은 멱등하게 설계되어야 합니다.
+
+- 요청에 고유 ID(Request ID)를 부여하고, 처리된 ID는 저장하여 중복 처리를 방지합니다.
+
+## 4. 결론
+
+도메인 분리에 따른 트랜잭션 문제는 기술적 복잡도를 높이지만, 서비스의 확장성과 독립성을 위해 필수적인 과정입니다.
+
+- **핵심 데이터**는 가능한 단일 서비스 내에서 처리하도록 도메인 경계를 잘 설정해야 합니다.
+- **분산 트랜잭션**이 불가피한 경우, Saga 패턴과 Outbox 패턴을 조합하여 **결과적 일관성**을 보장하는 설계를 적용합니다.
+- 실패 시나리오에 대한 **보상 트랜잭션** 설계가 비즈니스 로직 구현만큼 중요합니다.
+
+## 5. 현재 코드 적용 현황
+
+- **Saga Orchestration**: `order-service/src/main/kotlin/io/joopang/services/order/application/OrderService.kt`가 주문 생성, 결제, 재고 차감, 쿠폰 사용 단계별로 로컬 트랜잭션을 실행하고 검증 실패 시 즉시 롤백합니다.
+- 예시 코드:
+
+    ```kotlin
+    TransactionSynchronizationManager.registerSynchronization(
+        object : TransactionSynchronization {
+            override fun afterCommit() {
+                dataTransmissionService.send(payload)
+                orderEventPublisher.publishOrderPaid(event)
+            }
+        },
+    )
+    ```
+
+- **분리된 쿠폰 트랜잭션**: `order-service/.../KafkaCouponClient.kt`는 Kafka로 쿠폰 명령을 발행하고, `coupon-service/.../CouponCommandHandler.kt` 는 자체 DB 트랜잭션을 수행 후 응답을 반환하여 Database-per-Service 구조를 유지합니다.
+- **사후 이벤트 처리**: 결제 커밋 후 `TransactionSynchronizationManager.afterCommit`에서만 `OrderDataTransmissionService`와 `OrderEventPublisher`를 호출하고, 실패 시 `retryQueue`에 적재하여 부분 실패를 격리합니다.
+- **동시성/멱등성 장치**: 재고 차감은 `@DistributedLock`으로, 쿠폰 발급 큐는 Redis Sorted Set/Stream (`coupon-service/.../CouponIssueCoordinator.kt`)으로 중복 요청을 제거합니다.
+
+## 6. Next
+
+- 결제 트랜잭션과 이벤트 발행 사이의 간극을 줄이기 위해 **Transactional Outbox**를 도입합니다. Order 서비스 DB에 outbox 테이블을 추가해 `OrderPaid` 이벤트와 통계 전송 payload를 영속화하고, 별도 Relay 프로세스가 Kafka/외부 연동으로 전달하도록 개선할 예정입니다.
