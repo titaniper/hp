@@ -69,6 +69,8 @@ class CouponIssueRequestConsumer(
     }
 
     private fun createGroupIfNecessary() {
+        // Worker는 Redis Stream 컨슈머 그룹 기반으로 돌아가므로,
+        // 그룹/스트림이 없으면 초기화 단계에서 만들어 둔다.
         if (!redisTemplate.hasKey(requestStreamKey)) {
             streamOps.add(
                 StreamRecords.mapBacked<String, String, String>(mapOf("bootstrap" to "1"))
@@ -85,6 +87,7 @@ class CouponIssueRequestConsumer(
     }
 
     private fun handleRecord(record: MapRecord<String, String, String>) {
+        // Stream 엔트리에는 queue enqueue 시 기록했던 requestId/templateId/userId가 들어있다.
         val requestId = record.value[CouponIssueCoordinator.REQUEST_ID_FIELD]
         val templateId = record.value[CouponIssueCoordinator.TEMPLATE_ID_FIELD]?.toLongOrNull()
         val userId = record.value[CouponIssueCoordinator.USER_ID_FIELD]?.toLongOrNull()
@@ -95,6 +98,7 @@ class CouponIssueRequestConsumer(
         }
 
         try {
+            // Redis 큐에서 직렬화된 요청이므로 별도의 분산락 없이 DB 비관적 락으로만 발급을 수행한다.
             val output = couponService.issueCouponWithoutLock(
                 CouponService.IssueCouponCommand(
                     couponTemplateId = templateId,
@@ -123,6 +127,7 @@ class CouponIssueRequestConsumer(
                 ),
             )
         } finally {
+            // 처리 성공/실패와 관계없이 대기열과 Stream 메시지를 반드시 정리해 순서 보장을 유지한다.
             couponIssueCoordinator.complete(templateId, requestId)
             ack(record.id)
         }
