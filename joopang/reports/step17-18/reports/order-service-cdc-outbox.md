@@ -89,3 +89,33 @@ order_outbox_events
 - `OrderEventPublisher` 삭제 → 기존 직접 Kafka 발행 경로 제거.
 - 애플리케이션에서 Outbox 조회/재처리 API가 필요하면 Admin Endpoint를 별도로 추가 예정.
 - 향후 쿠폰 서비스 등 다른 도메인에서도 동일 패턴을 재사용할 수 있도록 Outbox 모듈을 추상화한다.
+
+
+
+
+INSERT INTO order_outbox_events (
+      id,
+      aggregate_type,
+      aggregate_id,
+      event_type,
+      payload,
+      occurred_at,
+      status,
+      created_at,
+      retry_count
+  ) VALUES (
+      1,
+      'order',
+      'order-20241218-0001',
+      'order-paid',
+      '{
+          "orderId": "order-20241218-0001",
+          "userId": "user-42",
+          "totalAmount": 45000,
+          "paidAt": "2025-12-18T04:46:00Z"
+      }',
+      NOW(6),
+      'PENDING',
+      NOW(6),
+      0
+  );

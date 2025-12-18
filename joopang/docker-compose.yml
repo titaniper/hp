@@ -246,6 +246,8 @@ services:
       - kafka
     volumes:
       - ./docker/debezium/application.properties:/debezium/conf/application.properties:ro
+      # offset 파일을 로컬에 영구 저장해 재기동 시에도 위치 유지
+      - ./docker/debezium/data:/debezium/data
 
   # ---------------------------------------------------------------------------
   # OpenTelemetry Collector

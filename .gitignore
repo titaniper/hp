@@ -1,3 +1,6 @@
 ### Codex ###
 .codex/*
 !.codex/prompts
+
+# Debezium runtime data
+joopang/docker/debezium/data/
