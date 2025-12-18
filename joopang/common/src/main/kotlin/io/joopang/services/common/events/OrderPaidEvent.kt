@@ -10,6 +10,7 @@ data class OrderPaidEvent(
     val discountAmount: BigDecimal,
     val paidAt: Instant,
     val items: List<OrderPaidLineItem>,
+    val couponIds: List<Long> = emptyList(),
 )
 
 data class OrderPaidLineItem(

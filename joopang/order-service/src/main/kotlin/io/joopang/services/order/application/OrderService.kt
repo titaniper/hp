@@ -148,16 +148,6 @@ class OrderService(
         val updatedUser = user.deduct(payableAmount)
         userRepository.save(updatedUser)
 
-        order.discounts.forEach { discount ->
-            discount.couponId?.let { couponId ->
-                couponClient.markCouponUsed(
-                    couponId = couponId,
-                    userId = order.userId,
-                    orderId = orderId,
-                )
-            }
-        }
-
         val paidAt = Instant.now()
         order.markPaid(paidAt)
         orderRepository.save(order)
@@ -193,6 +183,7 @@ class OrderService(
                     subtotal = item.subtotal.toBigDecimal(),
                 )
             },
+            couponIds = order.discounts.mapNotNull { it.couponId },
         )
         orderOutboxService.enqueueOrderPaid(event)
 

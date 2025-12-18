@@ -22,15 +22,6 @@ class CouponOrderFacade(
         return coupon
     }
 
-    @Transactional
-    fun markCouponUsed(couponId: Long, userId: Long, orderId: Long): Coupon {
-        val coupon = couponRepository.findByIdAndUserId(couponId, userId)
-            ?: throw CouponNotFoundException(couponId.toString())
-        validateAvailability(coupon)
-        val updated = coupon.markUsed(orderId = orderId, usedAt = Instant.now())
-        return couponRepository.save(updated)
-    }
-
     private fun validateAvailability(coupon: Coupon) {
         if (coupon.status != CouponStatus.AVAILABLE) {
             throw InvalidCouponException("Coupon ${coupon.id} is not available")

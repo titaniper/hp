@@ -28,7 +28,6 @@ class CouponCommandHandler(
     fun handle(command: CouponCommand) {
         val result = when (command.type) {
             CouponCommandType.VALIDATE -> handleValidate(command)
-            CouponCommandType.MARK_USED -> handleMarkUsed(command)
         }
         kafkaTemplate.send(replyTopic, command.requestId, result)
     }
@@ -43,26 +42,6 @@ class CouponCommandHandler(
             )
         }.getOrElse { ex ->
             log.warn("쿠폰 검증 실패. couponId={}", command.couponId, ex)
-            CouponCommandResult(
-                requestId = command.requestId,
-                success = false,
-                errorMessage = ex.message,
-            )
-        }
-
-    private fun handleMarkUsed(command: CouponCommand): CouponCommandResult =
-        kotlin.runCatching {
-            couponOrderFacade.markCouponUsed(
-                couponId = command.couponId,
-                userId = command.userId,
-                orderId = command.orderId ?: error("orderId is required"),
-            )
-            CouponCommandResult(
-                requestId = command.requestId,
-                success = true,
-            )
-        }.getOrElse { ex ->
-            log.warn("쿠폰 사용 처리 실패. couponId={}", command.couponId, ex)
             CouponCommandResult(
                 requestId = command.requestId,
                 success = false,

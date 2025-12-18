@@ -41,19 +41,6 @@ class KafkaCouponClient(
         return coupon
     }
 
-    override fun markCouponUsed(couponId: Long, userId: Long, orderId: Long) {
-        val command = CouponCommand(
-            type = CouponCommandType.MARK_USED,
-            couponId = couponId,
-            userId = userId,
-            orderId = orderId,
-        )
-        val result = execute(command)
-        if (!result.success) {
-            throw InvalidCouponException(result.errorMessage ?: "Coupon $couponId 사용 실패")
-        }
-    }
-
     @KafkaListener(
         topics = ["\${kafka.topics.coupon-command-reply:coupon-command-reply}"],
         groupId = "\${kafka.coupon-client.group-id:order-coupon-client}",

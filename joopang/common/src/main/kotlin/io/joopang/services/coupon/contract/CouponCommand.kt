@@ -7,7 +7,6 @@ import java.util.UUID
 
 enum class CouponCommandType {
     VALIDATE,
-    MARK_USED,
 }
 
 data class CouponCommand(
