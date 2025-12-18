@@ -11,7 +11,7 @@ spring:
     open-in-view: false
     defer-datasource-initialization: true
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: false
     properties:
       hibernate:
@@ -26,6 +26,9 @@ spring:
     init:
       mode: always
       encoding: UTF-8
+      continue-on-error: true
+      schema-locations:
+        - classpath:db/migration/V1__init_schema.sql
       data-locations:
         - classpath:db/migration/V2__seed_data.sql
 

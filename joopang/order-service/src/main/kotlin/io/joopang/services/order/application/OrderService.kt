@@ -12,6 +12,7 @@ import io.joopang.services.coupon.contract.InvalidCouponException
 import io.joopang.services.order.application.coupon.CouponClient
 import io.joopang.services.order.application.coupon.assertUsable
 import io.joopang.services.order.application.coupon.calculateDiscount
+import io.joopang.services.order.application.outbox.OrderOutboxService
 import io.joopang.services.order.domain.Order
 import io.joopang.services.order.domain.OrderDiscount
 import io.joopang.services.order.domain.OrderDiscountType
@@ -48,7 +49,7 @@ class OrderService(
     private val userRepository: UserRepository,
     private val couponClient: CouponClient,
     private val dataTransmissionService: OrderDataTransmissionService,
-    private val orderEventPublisher: OrderEventPublisher,
+    private val orderOutboxService: OrderOutboxService,
 ) {
     private val logger = LoggerFactory.getLogger(OrderService::class.java)
 
@@ -193,6 +194,7 @@ class OrderService(
                 )
             },
         )
+        orderOutboxService.enqueueOrderPaid(event)
 
         TransactionSynchronizationManager.registerSynchronization(
             object : TransactionSynchronization {
@@ -202,11 +204,6 @@ class OrderService(
                     } catch (ex: Exception) {
                         logger.error("Failed to send order data. Adding to retry queue.", ex)
                         dataTransmissionService.addToRetryQueue(payload)
-                    }
-                    kotlin.runCatching {
-                        orderEventPublisher.publishOrderPaid(event)
-                    }.onFailure { throwable ->
-                        logger.error("Failed to publish order paid event for {}", orderId, throwable)
                     }
                 }
             },

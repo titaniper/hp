@@ -184,3 +184,19 @@ CREATE TABLE payments (
     PRIMARY KEY (id),
     INDEX idx_payments_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE order_outbox_events (
+    id BIGINT NOT NULL,
+    aggregate_type VARCHAR(64) NOT NULL,
+    aggregate_id VARCHAR(191) NOT NULL,
+    event_type VARCHAR(128) NOT NULL,
+    payload LONGTEXT NOT NULL,
+    occurred_at DATETIME(6) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    published_at DATETIME(6),
+    last_error TEXT,
+    retry_count INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    INDEX idx_order_outbox_events_status_created_at (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -6,6 +6,8 @@ import io.joopang.services.coupon.contract.CouponSnapshot
 import io.joopang.services.coupon.contract.CouponStatus
 import io.joopang.services.coupon.contract.CouponType
 import io.joopang.services.order.application.coupon.InMemoryCouponClient
+import io.joopang.services.order.domain.outbox.OrderOutboxEventType
+import io.joopang.services.order.infrastructure.outbox.OrderOutboxEventRepository
 import io.joopang.services.order.domain.OrderDiscountType
 import io.joopang.services.product.domain.ProductWithItems
 import io.joopang.services.product.domain.StockQuantity
@@ -35,6 +37,7 @@ class OrderServiceTest @Autowired constructor(
     private val productRepository: ProductRepository,
     private val couponClient: InMemoryCouponClient,
     private val dataTransmissionService: CapturingOrderDataTransmissionService,
+    private val orderOutboxEventRepository: OrderOutboxEventRepository,
 ) : IntegrationTestSupport() {
 
     private var userId: Long = 0
@@ -99,6 +102,36 @@ class OrderServiceTest @Autowired constructor(
 
         assertThat(result.status).isEqualTo(OrderService.PaymentStatus.SUCCESS)
         assertThat(dataTransmissionService.sentPayloads).hasSize(1)
+    }
+
+    @Test
+    fun `process payment writes order paid outbox event`() {
+        val order = orderService.createOrder(
+            OrderService.CreateOrderCommand(
+                userId = userId,
+                recipientName = "고객",
+                items = listOf(
+                    OrderService.CreateOrderItemCommand(
+                        productId = productId,
+                        productItemId = productItemId,
+                        quantity = 1,
+                    ),
+                ),
+            ),
+        )
+
+        orderService.processPayment(
+            OrderService.ProcessPaymentCommand(
+                orderId = order.orderId,
+                userId = userId,
+            ),
+        )
+
+        val events = orderOutboxEventRepository.findAll()
+        assertThat(events).hasSize(1)
+        val event = events.first()
+        assertThat(event.aggregateId).isEqualTo(order.orderId.toString())
+        assertThat(event.eventType).isEqualTo(OrderOutboxEventType.ORDER_PAID.value)
     }
 
     private fun createUserWithBalance(): Long {

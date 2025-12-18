@@ -3,7 +3,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: ${DB_URL:jdbc:mysql://coupon-mysql:3306/coupon_service?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    url: ${DB_URL:jdbc:mysql://localhost:3312/coupon_service?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
     username: ${DB_USERNAME:coupon_user}
     password: ${DB_PASSWORD:coupon_pass}
     driver-class-name: com.mysql.cj.jdbc.Driver
