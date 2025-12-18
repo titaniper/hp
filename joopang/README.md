@@ -107,3 +107,12 @@ docker compose up -d
 
 
      docker compose up -d --force-recreate telegraf
+
+## CDC & Outbox
+- 결제 완료 시 주문 서비스는 `order_outbox_events` 테이블에 `order-paid` 이벤트 페이로드를 저장합니다. 같은 트랜잭션 안에서 영속화되므로 주문 상태와 이벤트 간 정합성이 보장됩니다.
+- `docker-compose.yml`에는 Debezium Server(`order-debezium`)가 추가되어 있으며, `order-mysql`의 binlog를 읽어 `order_outbox_events` 테이블을 CDC 합니다. 이벤트는 outbox 이벤트 타입별 토픽(`order-paid`)으로 Kafka에 적재됩니다.
+- 실행 방법:
+  1. `docker compose up -d order-mysql kafka order-debezium kafka-ui` (또는 `docker compose up -d` 전체 실행)
+  2. Kafka UI(`http://localhost:8088`)에서 `order-paid` 토픽을 확인하면 CDC로 전송되는 이벤트를 볼 수 있습니다.
+- Debezium 설정은 `docker/debezium/application.properties`에 정리돼 있습니다. 다른 토픽명/Batch/Transform 정책이 필요하면 이 파일을 수정한 뒤 `docker compose up -d order-debezium --force-recreate`로 재기동하세요.
+- MySQL binlog 설정과 Debezium 계정은 각각 `docker-compose.yml`의 `order-mysql` 명령행 옵션과 `docker/mysql/init/02-debezium-user.sql`에 정의했습니다. 운영 환경에서는 별도의 비밀번호/권한 정책으로 교체해야 합니다.
