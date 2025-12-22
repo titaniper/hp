@@ -274,6 +274,50 @@ services:
     ports:
       - "9411:9411"
 
+  # ---------------------------------------------------------------------------
+  # Pinpoint APM Stack
+  # ---------------------------------------------------------------------------
+  pinpoint-hbase:
+    image: pinpointdocker/pinpoint-hbase:2.5.3
+    container_name: joopang-pinpoint-hbase
+    restart: unless-stopped
+    ports:
+      - "2181:2181"    # Zookeeper
+      - "16010:16010"  # HBase master UI
+    volumes:
+      - pinpoint-hbase-data:/home/pinpoint/hbase
+
+  pinpoint-collector:
+    image: pinpointdocker/pinpoint-collector:2.5.3
+    container_name: joopang-pinpoint-collector
+    restart: unless-stopped
+    depends_on:
+      - pinpoint-hbase
+    environment:
+      HBASE_HOST: pinpoint-hbase
+      CLUSTER_ENABLE: "false"
+    ports:
+      - "9991:9991"   # agent TCP
+      - "9992:9992"   # stat TCP
+      - "9993:9993"   # span TCP
+      - "9994:9994"   # agent keepalive
+      - "9995:9995/udp" # stat UDP
+      - "9996:9996/udp" # span UDP
+
+  pinpoint-web:
+    image: pinpointdocker/pinpoint-web:2.5.3
+    container_name: joopang-pinpoint-web
+    restart: unless-stopped
+    depends_on:
+      - pinpoint-hbase
+      - pinpoint-collector
+    environment:
+      HBASE_HOST: pinpoint-hbase
+      CLUSTER_ENABLE: "false"
+      COLLECTOR_IP: pinpoint-collector
+    ports:
+      - "8079:8079"
+
 # -----------------------------------------------------------------------------
 # Volumes: 컨테이너가 삭제되어도 데이터가 유지되도록 하는 저장소 정의
 # -----------------------------------------------------------------------------
@@ -285,3 +329,4 @@ volumes:
   promtail-positions:
   influxdb-data:
   grafana-data:
+  pinpoint-hbase-data:

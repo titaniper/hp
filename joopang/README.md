@@ -59,6 +59,7 @@
 - [docs/design/api-specification.md](docs/design/api-specification.md) : API 설계 초안.
 - [docs/design/erd.md](docs/design/erd.md) : 도메인 모델 ERD.
 - [docs/design/tasks.md](docs/design/tasks.md), [docs/design/user-stories.md](docs/design/user-stories.md) : 학습/개발 계획 자료.
+- [docs/pinpoint.md](docs/pinpoint.md) : Pinpoint APM 스택 실행 및 에이전트 설정 방법.
 
 ## Project Conventions
 - Kotlin 파일은 도메인 중심 패키지 구조를 따릅니다 (`io.joopang.services.*`).
