@@ -26,8 +26,10 @@ spring:
     init:
       mode: always
       encoding: UTF-8
+      schema-locations:
+        - classpath:db/test/V1__init_schema.sql
       data-locations:
-        - classpath:db/migration/V2__seed_data.sql
+        - classpath:db/test/V2__seed_data.sql
 
 logging:
   level:

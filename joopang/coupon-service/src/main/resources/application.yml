@@ -50,5 +50,8 @@ kafka:
   topics:
     coupon-command: ${COUPON_COMMAND_TOPIC:coupon-command}
     coupon-command-reply: ${COUPON_COMMAND_REPLY_TOPIC:coupon-command-reply}
+    order-paid: ${ORDER_PAID_TOPIC:order-paid}
   coupon-command:
     group-id: ${COUPON_COMMAND_GROUP_ID:coupon-command-worker}
+  order-paid:
+    group-id: ${ORDER_PAID_GROUP_ID:coupon-order-paid-worker}

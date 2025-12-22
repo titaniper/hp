@@ -1,3 +1,4 @@
+DELETE FROM order_outbox_events;
 DELETE FROM payments;
 DELETE FROM deliveries;
 DELETE FROM order_discounts;

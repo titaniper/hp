@@ -9,7 +9,6 @@ import java.time.Instant
 
 interface CouponClient {
     fun getCouponForOrder(couponId: Long, userId: Long): CouponSnapshot
-    fun markCouponUsed(couponId: Long, userId: Long, orderId: Long)
 }
 
 fun CouponSnapshot.assertUsable(referenceTime: Instant = Instant.now()) {

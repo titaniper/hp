@@ -24,21 +24,6 @@ class InMemoryCouponClient : CouponClient {
         return coupon
     }
 
-    override fun markCouponUsed(couponId: Long, userId: Long, orderId: Long) {
-        val updated = coupons.computeIfPresent(couponId) { _, existing ->
-            if (existing.userId != userId) {
-                throw InvalidCouponException("Coupon $couponId does not belong to user $userId")
-            }
-            existing.copy(
-                status = CouponStatus.USED,
-                usedAt = Instant.now(),
-            )
-        }
-        if (updated == null) {
-            throw CouponNotFoundException(couponId.toString())
-        }
-    }
-
     fun registerCoupon(snapshot: CouponSnapshot) {
         coupons[snapshot.id] = snapshot
     }
