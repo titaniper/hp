@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - configmap-shared.yaml
+  - order-mysql-secret.yaml
+  - coupon-mysql-secret.yaml
+  - statefulset-order-mysql.yaml
+  - service-order-mysql.yaml
+  - statefulset-coupon-mysql.yaml
+  - service-coupon-mysql.yaml
+  - deployment-redis.yaml
+  - service-redis.yaml
+  - deployment-order-service.yaml
+  - service-order-service.yaml
+  - deployment-coupon-service.yaml
+  - service-coupon-service.yaml
+  - deployment-gateway.yaml
+  - service-gateway.yaml
